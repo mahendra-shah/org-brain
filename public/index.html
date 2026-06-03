@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OrgBrain • Local RAG Testbed</title>
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Left Navigation Panel (Metadata, Configs, Logs) -->
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="mascot.png" alt="OrgBrain Mascot Logo" class="brand-logo-img">
+        <div class="brand-text">
+          <h1>OrgBrain</h1>
+          <span>Knowledge Oracle</span>
+        </div>
+      </div>
+      
+      <div class="status-panel">
+        <h2>System Status</h2>
+        <div class="status-indicator">
+          <div class="indicator green"></div>
+          <span id="status-label">Active & Online</span>
+        </div>
+        <div class="mcp-server-box">
+          <div class="mcp-title">Notion MCP Server</div>
+          <span class="badge">Running</span>
+        </div>
+      </div>
+
+      <div class="settings-panel">
+        <h2>Engine Configuration</h2>
+        <div class="config-item">
+          <label>Active Provider</label>
+          <div class="engine-badge" id="provider-badge">...</div>
+        </div>
+        <div class="config-item">
+          <label>Model Variant</label>
+          <span class="value" id="model-badge">...</span>
+        </div>
+        <div class="config-item check-row">
+          <span class="label">Notion shared</span>
+          <span class="check-icon success">✓</span>
+        </div>
+        <div class="config-item check-row">
+          <span class="label">Slack bot configured</span>
+          <span id="slack-check" class="check-icon">...</span>
+        </div>
+      </div>
+
+      <div class="tips-box">
+        <h3>💡 RAG Tip</h3>
+        <p>Your questions trigger a real-time Model Context Protocol search across shared Notion workspace tables and pages. Responses are fully grounded.</p>
+      </div>
+    </aside>
+
+    <!-- Main Chat Work Area -->
+    <main class="chat-area">
+      <header class="chat-header">
+        <div class="chat-header-title">
+          <h2>Local Workspace QA Testbed</h2>
+          <p>Query Notion docs and inspect grounding results instantly.</p>
+        </div>
+        <button id="clear-btn" class="icon-btn" title="Clear Conversation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+        </button>
+      </header>
+
+      <!-- Message History Container -->
+      <section class="messages-container" id="chat-messages">
+        <!-- Welcomer message -->
+        <div class="message system-msg">
+          <div class="msg-avatar img-avatar"><img src="mascot.png" alt="OrgBrain Mascot"></div>
+          <div class="msg-bubble">
+            <p>Welcome! I am <strong>OrgBrain</strong>. Ask me anything from your connected Notion pages. I will fetch the documents in real-time, generate the answers, and link the sources below.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Typing indicator -->
+      <div id="typing-indicator" class="typing-indicator-container hide">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <span>Searching Notion & thinking...</span>
+      </div>
+
+      <!-- Chat Form Input Block -->
+      <footer class="chat-input-container">
+        <form id="chat-form" class="chat-form">
+          <textarea id="user-input" rows="1" placeholder="Ask about onboarding, project status, or workspace docs..." required></textarea>
+          <button type="submit" class="send-btn" id="send-button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </form>
+      </footer>
+    </main>
+
+  </div>
+  <!-- Application Script -->
+  <script src="app.js"></script>
+</body>
+</html>
