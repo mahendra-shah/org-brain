@@ -1,14 +1,14 @@
-# OrgBrain: Slack Notion AI Bot (Multi-LLM & Highly Resilient)
+# OrgBrain: Slack & Web Notion AI Oracle (Multi-LLM & Highly Resilient)
 
-Welcome to **OrgBrain**, your self-hosted, highly cost-effective, and production-hardened organization brain running in Slack. OrgBrain connects Slack to your Notion workspace using the official **Notion Model Context Protocol (MCP) Server** and queries LLMs (supporting **DeepSeek V3/R1** and **Claude 3.5 Sonnet** interchangeably) to answer organizational questions.
+Welcome to **OrgBrain**, a self-hosted, highly cost-effective, and production-hardened organization brain. OrgBrain connects Slack and a local glassmorphic Web QA dashboard to your Notion workspace using the official **Notion Model Context Protocol (MCP) Server**. It orchestrates advanced LLM routing (supporting **DeepSeek V3/R1** and **Claude 3.5 Sonnet** interchangeably) to answer organizational questions in real-time.
 
-This blueprint has been engineered to be **100% failure-proof**, implementing subprocess supervisor restarts, automatic dual-LLM fallback (DeepSeek ➡️ Claude), Slack event de-duplication, and message splitting safeguards.
+This project is engineered to be **100% resilient**, implementing subprocess supervisor watchdogs, automatic dual-LLM fallback (DeepSeek ➡️ Claude), input content safety filters, Slack event de-duplication, and message splitting safeguards.
 
 ---
 
 ## 🚀 Architecture Blueprint
 
-OrgBrain runs as a self-contained service (Node.js + TypeScript). It spawns the official `@notionhq/notion-mcp-server` as a local subprocess, maintaining an active secure connection over Standard Input/Output (`stdio`). 
+OrgBrain runs as a self-contained service (Node.js + TypeScript). On startup, it queries the Notion workspace to pre-fetch database metadata for zero-search RAG routing, boots up an Express API server with a static frontend, spawns the official `@notionhq/notion-mcp-server` as a supervised subprocess over `stdio`, and connects securely to Slack in Socket Mode.
 
 ```
                                       +--------------------+
@@ -25,8 +25,8 @@ OrgBrain runs as a self-contained service (Node.js + TypeScript). It spawns the 
                                                 | 2. Raw query
                                                 v
     +------------------+  3. Parse Tool  +--------------------+
-    |    LLM Router    | <=============> |    OrgBrain App    |
-    | (DeepSeek/Claude)|  Definitions    | (Node.js Service)  |
+    |    LLM Router    | <=============> |    OrgBrain App    | <===[HTTP POST]===> [ Web QA Dashboard ]
+    | (DeepSeek/Claude)|  Definitions    | (Node.js Service)  |                     (Port 3000 Front-End)
     +------------------+                 +--------------------+
              ^                                  |
              | 5. Process grounded              | 4. Spawn Notion
@@ -42,7 +42,7 @@ OrgBrain runs as a self-contained service (Node.js + TypeScript). It spawns the 
 
 ## ⚙️ Configuration Setup (`.env`)
 
-Create a `.env` file in the root of your project directory:
+Create a `.env` file in the root of your project directory. This file is gitignored to protect sensitive credentials.
 
 ```env
 # ==============================================================================
@@ -53,12 +53,12 @@ Create a `.env` file in the root of your project directory:
 # Supported: "deepseek" or "claude"
 LLM_PROVIDER=deepseek
 
-# DeepSeek Configuration
+# DeepSeek Configuration (Primary)
 DEEPSEEK_API_KEY=your-deepseek-api-key
 DEEPSEEK_API_URL=https://api.deepseek.com/v1   # Standard DeepSeek endpoint
 DEEPSEEK_MODEL=deepseek-chat                  # Use "deepseek-reasoner" for R1
 
-# Claude Configuration (Also serves as auto-fallback if DeepSeek fails!)
+# Claude Configuration (Also serves as auto-failover if DeepSeek has an outage!)
 ANTHROPIC_API_KEY=your-anthropic-api-key
 ANTHROPIC_MODEL=claude-3-5-sonnet-latest
 
@@ -68,36 +68,36 @@ SLACK_APP_TOKEN=xapp-your-app-token
 
 # Notion Integration
 NOTION_API_TOKEN=secret_yournotionintegrationtoken
+
+# Diagnostic Metadata Settings
+SHOW_DEV_METADATA=true
 ```
 
 ---
 
 ## 📂 Project Directory Structure
 
-```
-notion-brain/
-├── src/
-│   ├── index.ts          # Application bootstrap & entry point
-│   ├── config.ts         # Environment configuration parser
-│   ├── slack.ts          # Slack connection, de-duplication, & event handlers
-│   ├── mcp.ts            # Resilient MCP Client (spawns/supervises Notion MCP subprocess)
-│   ├── llm.ts            # LLM provider abstraction & automatic failover adapter
-│   └── utils/
-│       └── helpers.ts    # String and text helpers
-├── .env                  # Configuration variables (git ignored)
-├── package.json
-└── tsconfig.json
-```
+Click any file to inspect the source code directly:
+
+*   [src/config.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/config.ts) — Validates and ingests environmental variables.
+*   [src/mcp.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/mcp.ts) — Launches and supervises the Notion MCP subprocess client.
+*   [src/llm.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/llm.ts) — LLM provider API interface with automatic Claude failover.
+*   [src/server.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/server.ts) — Boots the Express web API server and serves the Web QA Dashboard.
+*   [src/index.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/index.ts) — Main entry point: establishes the Slack Bolt client and coordinates parallel boots.
+*   `src/utils/` — Core business logic utilities:
+    *   [src/utils/notion.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/utils/notion.ts) — Compiles database schema maps and builds prompts with pre-mapped user IDs.
+    *   [src/utils/filters.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/utils/filters.ts) — Security content checks that intercept and block sensitive inputs.
+    *   [src/utils/helpers.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/utils/helpers.ts) — Truncation, Slack mrkdwn formatting, and long message splitting.
+*   [tests/](file:///Users/mahendra/work-dir/personal-p/notion-brain/tests) — Gitignored local test folder for sandbox scripts.
+*   [public/](file:///Users/mahendra/work-dir/personal-p/notion-brain/public) — Static visual dashboard front-end (index.html, style.css, app.js).
 
 ---
 
 ## 📜 Complete Code Blueprint
 
-Below is the structured, production-ready boilerplate code you can copy directly to build the files in the `src/` directory.
+Below is the production-ready codebase structure:
 
-### 1. `src/config.ts`
-Manages the validation and ingestion of environmental variables.
-
+### 1. Configuration Client ([src/config.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/config.ts))
 ```typescript
 import dotenv from 'dotenv';
 dotenv.config();
@@ -122,30 +122,28 @@ export const config = {
   },
   
   notion: {
-    apiToken: process.env.NOTION_API_TOKEN || '',
-  }
+    apiToken: process.env.NOTION_TOKEN || process.env.NOTION_API_TOKEN || '',
+  },
+  
+  showDevMetadata: process.env.SHOW_DEV_METADATA === 'true'
 };
 
-// Validate variables
+// Validate variables on initialization
 if (!config.slack.botToken || !config.slack.appToken) {
-  throw new Error("Missing critical Slack tokens in .env");
+  throw new Error("Missing critical Slack tokens in .env. Both SLACK_BOT_TOKEN and SLACK_APP_TOKEN must be specified.");
 }
 if (config.llmProvider === 'deepseek' && !config.deepseek.apiKey) {
-  throw new Error("Missing DeepSeek API key for chosen provider");
+  throw new Error("Missing DEEPSEEK_API_KEY in .env for deepseek provider selection.");
 }
 if (config.llmProvider === 'claude' && !config.claude.apiKey) {
-  throw new Error("Missing Anthropic API key for chosen provider");
+  throw new Error("Missing ANTHROPIC_API_KEY in .env for claude provider selection.");
 }
 if (!config.notion.apiToken) {
-  throw new Error("Missing Notion API Token in .env");
+  throw new Error("Missing NOTION_API_TOKEN in .env. Notion integration token is required.");
 }
 ```
 
----
-
-### 2. `src/mcp.ts`
-Initializes the Model Context Protocol Client, spawns the `@notionhq/notion-mcp-server` subprocess, and **supervises it dynamically** to auto-restart in case of crashes or broken stdio pipes.
-
+### 2. Supervised MCP Subprocess Manager ([src/mcp.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/mcp.ts))
 ```typescript
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -165,6 +163,7 @@ export class NotionMCPClient {
       args: ['-y', '@notionhq/notion-mcp-server'],
       env: {
         ...process.env,
+        NOTION_TOKEN: config.notion.apiToken,
         NOTION_API_TOKEN: config.notion.apiToken
       }
     });
@@ -174,7 +173,6 @@ export class NotionMCPClient {
       { capabilities: {} }
     );
 
-    // Register active supervisor hooks
     this.transport.stderr?.on('data', (chunk) => {
       console.warn(`[MCP Server stderr]: ${chunk.toString().trim()}`);
     });
@@ -182,16 +180,14 @@ export class NotionMCPClient {
     await this.client.connect(this.transport);
     console.log("Notion MCP Server successfully connected via stdio!");
 
-    // Watchdog for crash handling
-    const connectionPromise = this.client;
-    this.transport.onClose(() => {
+    this.transport.onclose = () => {
       if (!this.isShuttingDown) {
-        console.error("⚠️ Notion MCP subprocess connection closed unexpectedly! Triggering supervisor auto-restart...");
+        console.error("⚠️ Notion MCP subprocess connection closed unexpectedly! Triggering supervisor auto-restart in 3 seconds...");
         setTimeout(() => {
           this.start().catch((err) => console.error("Supervisor failed to restart MCP server:", err));
         }, 3000);
       }
-    });
+    };
   }
 
   async getTools() {
@@ -204,7 +200,6 @@ export class NotionMCPClient {
     if (!this.client) throw new Error("MCP client not initialized");
     console.log(`Executing Notion tool: ${name} with arguments:`, args);
     
-    // Enforce high-level API timeout of 10s to prevent hanging queries
     const timeout = new Promise((_, reject) => 
       setTimeout(() => reject(new Error(`Notion MCP query timed out for tool ${name}`)), 10000)
     );
@@ -223,11 +218,7 @@ export class NotionMCPClient {
 }
 ```
 
----
-
-### 3. `src/llm.ts`
-The Multi-LLM provider abstraction. It bridges the gap between OpenAI-compatible JSON tool calling (DeepSeek) and Anthropic tool formats (Claude). **Includes active automatic dual-LLM failover**.
-
+### 3. Multi-LLM API Abstraction ([src/llm.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/llm.ts))
 ```typescript
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
@@ -274,14 +265,7 @@ export class LLMClient {
     }
   }
 
-  /**
-   * Generates a grounded response. Automatically fails over to Claude if DeepSeek experiences an outage.
-   */
-  async generateResponse(
-    systemPrompt: string,
-    history: { role: 'user' | 'assistant' | 'system', content: string }[],
-    tools: any[]
-  ) {
+  async generateResponse(systemPrompt: string, history: any[], tools: any[]) {
     const provider = config.llmProvider;
     try {
       if (provider === 'deepseek') {
@@ -292,7 +276,6 @@ export class LLMClient {
     } catch (error) {
       console.error(`🚨 Primary LLM provider (${provider}) failed. Triggering resilience failover...`, error);
       
-      // If DeepSeek was primary and Claude credentials exist, fall back to Claude
       if (provider === 'deepseek' && this.anthropicClient) {
         console.warn("🔄 Failover: Querying Claude 3.5 Sonnet to answer the user query...");
         try {
@@ -306,15 +289,91 @@ export class LLMClient {
     }
   }
 
+  private mapMessagesForOpenAI(messages: any[]): any[] {
+    const result: any[] = [];
+    for (const msg of messages) {
+      if (msg.role === 'tool_responses') {
+        for (const resp of msg.responses) {
+          result.push({
+            role: 'tool',
+            tool_call_id: resp.toolCallId,
+            name: resp.toolName,
+            content: resp.content
+          });
+        }
+      } else if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+        result.push({
+          role: 'assistant',
+          content: msg.content || null,
+          tool_calls: msg.toolCalls.map((tc: any) => ({
+            id: tc.id,
+            type: 'function',
+            function: {
+              name: tc.name,
+              arguments: typeof tc.args === 'string' ? tc.args : JSON.stringify(tc.args)
+            }
+          }))
+        });
+      } else {
+        result.push({
+          role: msg.role,
+          content: msg.content
+        });
+      }
+    }
+    return result;
+  }
+
+  private mapMessagesForClaude(messages: any[]): any[] {
+    const result: any[] = [];
+    for (const msg of messages) {
+      if (msg.role === 'system') continue;
+      if (msg.role === 'tool_responses') {
+        result.push({
+          role: 'user',
+          content: msg.responses.map((resp: any) => ({
+            type: 'tool_result',
+            tool_use_id: resp.toolCallId,
+            content: resp.content
+          }))
+        });
+      } else if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+        const blocks: any[] = [];
+        if (msg.content) {
+          blocks.push({ type: 'text', text: msg.content });
+        }
+        msg.toolCalls.forEach((tc: any) => {
+          blocks.push({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.name,
+            input: tc.args
+          });
+        });
+        result.push({
+          role: 'assistant',
+          content: blocks
+        });
+      } else {
+        result.push({
+          role: msg.role,
+          content: msg.content
+        });
+      }
+    }
+    return result;
+  }
+
   private async queryDeepSeek(systemPrompt: string, history: any[], tools: any[]) {
     if (!this.openaiClient) throw new Error("DeepSeek OpenAI client is not configured");
     const formattedTools = this.formatToolsForLLM(tools, 'deepseek');
-    const messages = [{ role: 'system', content: systemPrompt }, ...history];
+    const nativeMessages = this.mapMessagesForOpenAI(history);
+    const messages = [{ role: 'system', content: systemPrompt }, ...nativeMessages];
 
     const response = await this.openaiClient.chat.completions.create({
       model: config.deepseek.model,
       messages: messages as any,
-      tools: formattedTools.length > 0 ? formattedTools as any : undefined,
+      tools: formattedTools.length > 0 ? (formattedTools as any) : undefined,
       tool_choice: formattedTools.length > 0 ? 'auto' : undefined
     });
 
@@ -325,24 +384,29 @@ export class LLMClient {
         id: tc.id,
         name: tc.function.name,
         args: JSON.parse(tc.function.arguments)
-      })) || []
+      })) || [],
+      usage: response.usage ? {
+        inputTokens: response.usage.prompt_tokens,
+        outputTokens: response.usage.completion_tokens
+      } : undefined
     };
   }
 
   private async queryClaude(systemPrompt: string, history: any[], tools: any[]) {
     if (!this.anthropicClient) throw new Error("Anthropic Claude client is not configured");
     const formattedTools = this.formatToolsForLLM(tools, 'claude');
+    const nativeMessages = this.mapMessagesForClaude(history);
 
     const response = await this.anthropicClient.messages.create({
       model: config.claude.model,
       system: systemPrompt,
-      messages: history,
+      messages: nativeMessages,
       max_tokens: 1500,
-      tools: formattedTools.length > 0 ? formattedTools as any : undefined
-    });
+      tools: formattedTools.length > 0 ? (formattedTools as any) : undefined
+    } as any);
 
     const textContent = response.content.find(c => c.type === 'text');
-    const toolCalls = response.content.filter(c => c.type === 'tool_use');
+    const toolCalls = response.content.filter(c => (c as any).type === 'tool_use');
 
     return {
       text: textContent ? (textContent as any).text : '',
@@ -350,99 +414,89 @@ export class LLMClient {
         id: tc.id,
         name: tc.name,
         args: tc.input
-      }))
+      })),
+      usage: (response as any).usage ? {
+        inputTokens: (response as any).usage.input_tokens,
+        outputTokens: (response as any).usage.output_tokens
+      } : undefined
     };
   }
 }
 ```
 
----
-
-### 4. `src/slack.ts`
-Slack controller utilizing Socket Mode. Implements **event de-duplication** to eliminate Slack double-posting, fetches context natively in threads, and **splits replies exceeding Slack's character limits**.
-
+### 4. Express Server QA Web API ([src/server.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/server.ts))
 ```typescript
-import pkg from '@slack/bolt';
-const { App } = pkg;
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import { NotionMCPClient } from './mcp.js';
 import { LLMClient } from './llm.js';
-import { splitMessage } from './utils/helpers.js';
+import { isQuerySensitive, getSensitiveBlockMessage } from './utils/filters.js';
+import { compressMCPToolResult, cleanHistoryMessage } from './utils/helpers.js';
+import { getSystemPrompt } from './utils/notion.js';
 
-const app = new App({
-  token: config.slack.botToken,
-  appToken: config.slack.appToken,
-  socketMode: true
-});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const mcpClient = new NotionMCPClient();
-const llmClient = new LLMClient();
+export function startWebServer(mcpClient: NotionMCPClient, llmClient: LLMClient, databasesMap: string) {
+  const app = express();
+  const port = process.env.PORT || 3000;
 
-// In-memory event de-duplication cache
-const processedEvents = new Set<string>();
+  app.use(express.json());
+  app.use(express.static(path.join(__dirname, '../public')));
 
-const SYSTEM_PROMPT = `You are OrgBrain, the secure knowledge Oracle for our organization.
-Your primary task is to answer questions from employees strictly using data retrieved from Notion.
-Rules:
-1. Search Notion thoroughly using the provided tools to answer.
-2. Ground all answers. If information is not found, state clearly that you cannot find it, and provide a helpful Notion search URL. Do not hallucinate.
-3. Be professional, clear, and structure long information using neat bullets.
-4. Cite sources by appending the exact document titles and links at the end of your response.`;
-
-export async function startSlackBot() {
-  await mcpClient.start();
-  const mcpTools = await mcpClient.getTools();
-
-  // Listen to Mentions
-  app.event('app_mention', async ({ event, client, say }) => {
-    // 1. Event De-duplication check
-    const eventId = event.client_msg_id || event.ts;
-    if (processedEvents.has(eventId)) {
-      console.log(`Ignoring duplicate event: ${eventId}`);
-      return;
-    }
-    processedEvents.add(eventId);
-    // Cleanup cache item after 1 minute
-    setTimeout(() => processedEvents.delete(eventId), 60000);
-
-    const threadTs = event.thread_ts || event.ts;
-    console.log(`Received question from Slack: "${event.text}" in thread: ${threadTs}`);
-
-    // Add typing indicator
-    await client.reactions.add({
-      name: 'eyes',
-      channel: event.channel,
-      timestamp: event.ts
+  app.get('/api/config', (req, res) => {
+    res.json({
+      llmProvider: config.llmProvider,
+      model: config.llmProvider === 'deepseek' ? config.deepseek.model : config.claude.model,
+      slackConfigured: !!(config.slack.botToken && config.slack.appToken),
+      showDevMetadata: config.showDevMetadata,
+      notionToken: config.showDevMetadata ? config.notion.apiToken : undefined
     });
+  });
+
+  app.post('/api/chat', async (req, res) => {
+    const { message, history } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: "Message is required." });
+    }
+
+    if (isQuerySensitive(message)) {
+      return res.json({
+        text: getSensitiveBlockMessage(),
+        citations: [],
+        usage: { inputTokens: 0, outputTokens: 0 }
+      });
+    }
 
     try {
-      // 2. Fetch stateless conversational history in thread (Context recovery!)
-      let history: { role: 'user' | 'assistant', content: string }[] = [];
-      
-      if (event.thread_ts) {
-        const threadReplies = await client.conversations.replies({
-          channel: event.channel,
-          ts: event.thread_ts,
-          limit: 10
-        });
+      const mcpTools = await mcpClient.getTools();
+      const filteredTools = mcpTools.filter(tool => {
+        const name = tool.name.toLowerCase();
+        return name.startsWith('api-get-') || 
+               name.startsWith('api-retrieve-') || 
+               name.includes('search') || 
+               name.includes('query');
+      });
 
-        if (threadReplies.messages) {
-          history = threadReplies.messages
-            .filter(msg => msg.text)
-            .map(msg => ({
-              role: msg.bot_id ? 'assistant' : 'user',
-              content: msg.text || ''
-            }));
-        }
-      } else {
-        history = [{ role: 'user', content: event.text }];
-      }
+      const formattedHistory: any[] = history ? history.map((h: any) => ({
+        role: h.role,
+        content: cleanHistoryMessage(h.content || '')
+      })) : [];
 
-      // 3. Prompt LLM with context & tools
-      let result = await llmClient.generateResponse(SYSTEM_PROMPT, history as any, mcpTools);
-      
-      // 4. Handle Tool Executions (The RAG Loop)
-      if (result.toolCalls && result.toolCalls.length > 0) {
+      const persistentHistoryCount = formattedHistory.length;
+      const systemPrompt = getSystemPrompt(databasesMap);
+
+      formattedHistory.push({ role: 'user', content: message });
+
+      let result = await llmClient.generateResponse(systemPrompt, formattedHistory, filteredTools);
+
+      let turns = 0;
+      const maxTurns = 10;
+
+      while (result.toolCalls && result.toolCalls.length > 0 && turns < maxTurns) {
+        turns++;
         const toolResults = [];
         
         for (const tc of result.toolCalls) {
@@ -450,27 +504,203 @@ export async function startSlackBot() {
             const rawResult = await mcpClient.callTool(tc.name, tc.args);
             toolResults.push({
               toolCallId: tc.id,
+              toolName: tc.name,
               role: 'tool' as const,
-              content: typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult)
+              content: compressMCPToolResult(rawResult)
             });
           } catch (toolError) {
-            console.error(`Notion tool execution failed for ${tc.name}:`, toolError);
+            console.error(`Notion tool execution failed for ${tc.name} in Web UI:`, toolError);
             toolResults.push({
               toolCallId: tc.id,
+              toolName: tc.name,
               role: 'tool' as const,
               content: `Error querying page context: ${(toolError as Error).message}`
             });
           }
         }
 
-        // Send tool results back to LLM
-        const combinedContent = `The following Notion pages were successfully fetched:\n${JSON.stringify(toolResults)}\n\nFormulate your final response to: "${event.text}"`;
-        history.push({ role: 'user', content: combinedContent });
-        result = await llmClient.generateResponse(SYSTEM_PROMPT, history as any, []);
+        formattedHistory.push({
+          role: 'assistant',
+          content: result.text || null,
+          toolCalls: result.toolCalls
+        });
+
+        formattedHistory.push({
+          role: 'tool_responses',
+          responses: toolResults
+        });
+
+        result = await llmClient.generateResponse(systemPrompt, formattedHistory, filteredTools);
       }
 
-      // 5. Send replies back safely, ensuring no message exceeds Slack's 4000 char limit
-      const chunks = splitMessage(result.text, 3800);
+      const citations: { title: string, url: string }[] = [];
+      const notionUrlRegex = /\[([^\]]+)\]\((https:\/\/www\.notion\.so\/[a-zA-Z0-9-_\/]+)\)/g;
+      let match;
+      while ((match = notionUrlRegex.exec(result.text)) !== null) {
+        citations.push({
+          title: match[1],
+          url: match[2]
+        });
+      }
+
+      res.json({
+        text: result.text,
+        citations: citations,
+        usage: result.usage,
+        showDevMetadata: config.showDevMetadata,
+        historyCount: persistentHistoryCount + 1,
+        notionToken: config.showDevMetadata ? config.notion.apiToken : undefined
+      });
+
+    } catch (error) {
+      console.error("Web chat controller processing error:", error);
+      res.status(500).json({ error: "Failed to answer. Check backend server console logs." });
+    }
+  });
+
+  app.listen(port, () => {
+    console.log(`✨ Local QA Web UI is online and running on http://localhost:${port}`);
+  });
+}
+```
+
+### 5. Application Bootstrap Gateway ([src/index.ts](file:///Users/mahendra/work-dir/personal-p/notion-brain/src/index.ts))
+```typescript
+import { NotionMCPClient } from './mcp.js';
+import { LLMClient } from './llm.js';
+import { startWebServer } from './server.js';
+import pkg from '@slack/bolt';
+const { App } = pkg;
+import { config } from './config.js';
+import { splitMessage, compressMCPToolResult, formatSlackMessage, cleanHistoryMessage } from './utils/helpers.js';
+import { isQuerySensitive, getSensitiveBlockMessage } from './utils/filters.js';
+import { fetchWorkspaceDatabases, getSystemPrompt } from './utils/notion.js';
+
+const mcpClient = new NotionMCPClient();
+const llmClient = new LLMClient();
+const processedEvents = new Set<string>();
+let slackApp: any = null;
+
+if (config.slack.botToken && config.slack.appToken) {
+  slackApp = new App({
+    token: config.slack.botToken,
+    appToken: config.slack.appToken,
+    socketMode: true
+  });
+
+  slackApp.error(async (error: any) => {
+    console.warn("⚠️ Slack Bolt App background error encountered:", error.message || error);
+  });
+}
+
+async function startSlackBot(mcpTools: any[], databasesMap: string) {
+  if (!slackApp) {
+    console.warn("⚠️ Slack tokens not fully configured in .env. Skipping Slack bot start (Web-Only Mode active).");
+    return;
+  }
+
+  slackApp.event('app_mention', async ({ event, client, say }: any) => {
+    const eventId = event.client_msg_id || event.ts;
+    if (processedEvents.has(eventId)) return;
+    processedEvents.add(eventId);
+    setTimeout(() => processedEvents.delete(eventId), 60000);
+
+    const threadTs = event.thread_ts || event.ts;
+    const cleanText = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+    if (isQuerySensitive(cleanText)) {
+      await say({
+        channel: event.channel,
+        thread_ts: threadTs,
+        text: getSensitiveBlockMessage()
+      });
+      return;
+    }
+
+    await client.reactions.add({
+      name: 'eyes',
+      channel: event.channel,
+      timestamp: event.ts
+    });
+
+    const filteredTools = mcpTools.filter(tool => {
+      const name = tool.name.toLowerCase();
+      return name.startsWith('api-get-') || 
+             name.startsWith('api-retrieve-') || 
+             name.includes('search') || 
+             name.includes('query');
+    });
+
+    try {
+      let history: any[] = [];
+      
+      if (event.thread_ts) {
+        const threadReplies = await client.conversations.replies({
+          channel: event.channel,
+          ts: event.thread_ts,
+          limit: 10
+        });
+ 
+        if (threadReplies.messages) {
+          history = threadReplies.messages
+            .filter((msg: any) => msg.text)
+            .map((msg: any) => ({
+              role: msg.bot_id ? 'assistant' : 'user',
+              content: cleanHistoryMessage(msg.text || '')
+            }));
+        }
+      } else {
+        const cleanText = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+        history = [{ role: 'user', content: cleanText }];
+      }
+
+      const persistentHistoryCount = history.length;
+      const systemPrompt = getSystemPrompt(databasesMap);
+
+      let result = await llmClient.generateResponse(systemPrompt, history as any, filteredTools);
+      
+      let turns = 0;
+      const maxTurns = 10;
+
+      while (result.toolCalls && result.toolCalls.length > 0 && turns < maxTurns) {
+        turns++;
+        const toolResults = [];
+        
+        for (const tc of result.toolCalls) {
+          try {
+            const rawResult = await mcpClient.callTool(tc.name, tc.args);
+            toolResults.push({
+              toolCallId: tc.id,
+              toolName: tc.name,
+              role: 'tool' as const,
+              content: compressMCPToolResult(rawResult)
+            });
+          } catch (toolError) {
+            console.error(`Notion tool execution failed for ${tc.name}:`, toolError);
+            toolResults.push({
+              toolCallId: tc.id,
+              toolName: tc.name,
+              role: 'tool' as const,
+              content: `Error querying page context: ${(toolError as Error).message}`
+            });
+          }
+        }
+
+        history.push({
+          role: 'assistant',
+          content: result.text || null,
+          toolCalls: result.toolCalls
+        });
+
+        history.push({
+          role: 'tool_responses',
+          responses: toolResults
+        });
+
+        result = await llmClient.generateResponse(systemPrompt, history as any, filteredTools);
+      }
+
+      const formattedSlackText = formatSlackMessage(result.text, result.usage, persistentHistoryCount);
+      const chunks = splitMessage(formattedSlackText, 3800);
       for (const chunk of chunks) {
         await say({
           channel: event.channel,
@@ -479,7 +709,6 @@ export async function startSlackBot() {
         });
       }
 
-      // Remove typing emoji
       await client.reactions.remove({
         name: 'eyes',
         channel: event.channel,
@@ -496,68 +725,65 @@ export async function startSlackBot() {
     }
   });
 
-  await app.start();
-  console.log("⚡️ Slack Socket Mode app is running securely!");
-}
-```
-
----
-
-### 5. `src/utils/helpers.ts`
-Utility helper file for formatting and clean message splitting.
-
-```typescript
-/**
- * Safely splits a message string into chunks without cutting off paragraphs in the middle.
- */
-export function splitMessage(text: string, limit = 3800): string[] {
-  if (text.length <= limit) return [text];
-  
-  const chunks: string[] = [];
-  let currentChunk = '';
-  
-  const paragraphs = text.split('\n\n');
-  for (const para of paragraphs) {
-    if ((currentChunk + para).length > limit) {
-      if (currentChunk.trim()) {
-        chunks.push(currentChunk.trim());
-      }
-      currentChunk = para + '\n\n';
-    } else {
-      currentChunk += para + '\n\n';
+  slackApp.event('reaction_added', async ({ event }: any) => {
+    if (event.reaction === 'thumbsup' || event.reaction === 'thumbsdown') {
+      console.log(`👍👎 Slack Feedback received: reacted with :${event.reaction}:`);
     }
+  });
+
+  try {
+    await slackApp.start();
+    console.log("⚡️ Slack Socket Mode app is running securely!");
+  } catch (error) {
+    console.warn("⚠️ Slack Connection Failed. Continuing in Web-Only Mode!");
   }
-  
-  if (currentChunk.trim()) {
-    chunks.push(currentChunk.trim());
-  }
-  
-  return chunks;
 }
-```
-
----
-
-### 6. `src/index.ts`
-App entry-point: boots environment, registers signal hooks for graceful shutdowns.
-
-```typescript
-import { startSlackBot } from './slack.js';
 
 (async () => {
   try {
-    await startSlackBot();
+    console.log(`🔧 OrgBrain Boot Configurations — Provider: ${config.llmProvider.toUpperCase()}, Show Dev Metadata: ${config.showDevMetadata}`);
+    await mcpClient.start();
+    const mcpTools = await mcpClient.getTools();
+    const databasesMap = await fetchWorkspaceDatabases(mcpClient);
+    startWebServer(mcpClient, llmClient, databasesMap);
+    startSlackBot(mcpTools, databasesMap).catch((err) => {
+      console.warn("⚠️ Slack bot failed to boot in background. Continuing in Web-Only Mode!", err);
+    });
   } catch (error) {
     console.error("Fatal initialization error:", error);
     process.exit(1);
   }
 })();
 
-// Graceful shutdown listeners
-process.on('SIGTERM', () => {
-  console.log("Shutting down OrgBrain cleanly...");
+const handleShutdown = async (signal: string) => {
+  console.log(`${signal} received. Shutting down OrgBrain cleanly...`);
+  await mcpClient.close();
+  if (slackApp) {
+    try {
+      await slackApp.stop();
+    } catch (err) {}
+  }
   process.exit(0);
-});
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+```
+
+---
+
+## 🧪 Testing and Offline Sandbox
+
+The codebase contains a dedicated, gitignored folder [tests/](file:///Users/mahendra/work-dir/personal-p/notion-brain/tests) for developers to run standalone test simulations of the RAG pipeline without needing to deploy the Slack gateway.
+
+### Available Standalone Test Scripts
+*   `tests/test-chat-rag.ts` — Tests the multi-turn conversational loop, token compression, and database retrieval.
+*   `tests/get_users.ts` — Standalone tool to discover, paginate, and list all Notion User IDs mapped to emails.
+
+To run the offline chat-RAG test simulation:
+```bash
+# Run the stand-alone test runner directly using modern TSX execution
+npx tsx tests/test-chat-rag.ts
 ```
 
 ---
@@ -569,64 +795,38 @@ process.on('SIGTERM', () => {
 2. Click **+ New Integration**. Select your workspace.
 3. Grant **Read content** and **Search content** permissions.
 4. Copy the **Internal Integration Token** (`secret_...`).
-5. Open your Notion workspace in browser. Go to pages/databases you want the bot to access (e.g. Onboarding page), click `...` -> **Connect to** -> Select your Integration.
+5. Open your Notion workspace in a browser. Go to pages/databases you want the bot to access (e.g. Onboarding page), click `...` ➡️ **Connect to** ➡️ Select your Integration.
 
 ### Step 2: Create a Slack App
 1. Go to [Slack API: Your Apps](https://api.slack.com/apps).
-2. Click **Create New App** -> **From scratch**.
-3. Under **Settings** -> **Basic Information**:
-   - Turn **Socket Mode** -> **ON**.
+2. Click **Create New App** ➡️ **From scratch**.
+3. Under **Settings** ➡️ **Basic Information**:
+   - Turn **Socket Mode** ➡️ **ON**.
    - Create an App-Level Token with `connections:write` scope. Copy the `xapp-...` token.
-4. Under **Features** -> **OAuth & Permissions**:
+4. Under **Features** ➡️ **OAuth & Permissions**:
    - Add **Bot Token Scopes**:
      - `app_mention:read`
      - `chat:write`
      - `channels:history`
      - `groups:history`
      - `im:history`
-     - `mpim:history`
      - `reactions:write`
    - Click **Install to Workspace** and authorize.
    - Copy the generated **Bot User OAuth Token** (`xoxb-...`).
-5. Under **Features** -> **Event Subscriptions**:
-   - Turn **Enable Events** -> **ON**.
-   - Under **Subscribe to bot events**, add `app_mention` and `message.im`.
+5. Under **Features** ➡️ **Event Subscriptions**:
+   - Turn **Enable Events** ➡️ **ON**.
+   - Under **Subscribe to bot events**, add `app_mention`.
 
 ### Step 3: Run OrgBrain Locally
 Initialize standard dependencies:
 
 ```bash
-# Initialize packages
-npm init -y
-npm install typescript @types/node --save-dev
-npx tsc --init
+# Install package dependencies
+npm install
 
-# Install production dependencies
-npm install @slack/bolt @modelcontextprotocol/sdk openai @anthropic-ai/sdk dotenv
-```
-
-Configure `tsconfig.json` target to output modern modular javascript:
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  }
-}
-```
-
-Build and execute the system:
-```bash
 # Compile TS to JS
-npx tsc
+npm run build
 
 # Run it!
-node dist/index.js
+npm start
 ```

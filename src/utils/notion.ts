@@ -115,8 +115,10 @@ ${databasesMap}
      * Mahendra: "10d94319-ed75-4351-8dfe-1aa415c274ad" (email: mahendra21@navgurukul.org)
      * Ravi Viswanathan: "0b9007ce-0003-4148-a25e-94b31cc3f3e7" (email: ravipv@gmail.com)
      * For any other user, call API-get-users in Turn 1 to find their Notion User ID.
-   - To query a user's tasks with 100% precision, call API-query-data-source on the Tasks database with a filter using the resolved Notion User ID in the "Engineer" or "Captain" properties (both are people property types). Example filter payload structure:
+   - To query a user's tasks with 100% precision, call API-query-data-source on the Tasks database.
+     Example arguments payload structure (Note: the "filter" property is a sibling to "data_source_id", do NOT nest another "filter" key inside it!):
      {
+       "data_source_id": "DATABASE_ID",
        "filter": {
          "or": [
            {
@@ -132,7 +134,8 @@ ${databasesMap}
              }
            }
          ]
-       }
+       },
+       "page_size": 100
      }
    - Once tasks are retrieved, filter out inactive items in-memory (e.g. status is "Released/ Done", "Complete", or "Archived") to present only what they are actively working on now.
 
