@@ -171,6 +171,7 @@ async function startSlackBot(ragService: RAGService) {
 
     // 3. Initialize RAG Orchestrator
     const ragService = new RAGService(mcpClient, llmClient, databasesMap);
+    await ragService.initialize();
 
     // 4. Boot Express API and static server
     startWebServer(ragService);

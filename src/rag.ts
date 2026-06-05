@@ -84,12 +84,73 @@ export class RAGService {
   private llmClient: LLMClient;
   private databasesMap: string;
   private cache: MemoryCache;
+  private taskDatabasesCache: { name: string; id: string; assigneeProps: string[] }[] = [];
 
   constructor(mcpClient: NotionMCPClient, llmClient: LLMClient, databasesMap: string) {
     this.mcpClient = mcpClient;
     this.llmClient = llmClient;
     this.databasesMap = databasesMap;
     this.cache = new MemoryCache();
+  }
+
+  /**
+   * Discovers and pre-caches the schemas of all task-related databases in the workspace.
+   */
+  public async initialize(): Promise<void> {
+    const regex = /-\s*"([^"]+)"\s*\(ID:\s*([^)]+)\)/g;
+    let match;
+    const candidates: { name: string; id: string }[] = [];
+    
+    while ((match = regex.exec(this.databasesMap)) !== null) {
+      const name = match[1];
+      const id = match[2].trim();
+      if (name.toLowerCase().includes("task")) {
+        candidates.push({ name, id });
+      }
+    }
+    
+    if (candidates.length === 0) {
+      console.log("🔍 [RAG Init] No task-related databases found in databasesMap.");
+      return;
+    }
+    
+    console.log(`🔍 [RAG Init] Discovered ${candidates.length} task database candidates. Resolving schemas in parallel...`);
+    
+    const resolved = await Promise.all(
+      candidates.map(async (db) => {
+        try {
+          const schema = await this.mcpClient.callTool('API-retrieve-a-data-source', {
+            data_source_id: db.id
+          });
+          
+          let parsedSchema = this.parseMCPContent(schema);
+          const props = parsedSchema?.properties || {};
+          const assigneeProps: string[] = [];
+          
+          for (const [propName, propVal] of Object.entries(props)) {
+            if (propVal && (propVal as any).type === 'people') {
+              const lowerName = propName.toLowerCase();
+              const isAssignee = ['assign', 'engineer', 'captain', 'employee', 'owner', 'member', 'who'].some(keyword => lowerName.includes(keyword));
+              if (isAssignee) {
+                assigneeProps.push(propName);
+              }
+            }
+          }
+          
+          return { name: db.name, id: db.id, assigneeProps };
+        } catch (err) {
+          console.warn(`⚠️ [RAG Init] Failed to retrieve schema for database "${db.name}" (${db.id}):`, (err as Error).message);
+          // Fallback defaults
+          const defaultAssignees = db.name.toLowerCase().includes("fpo") ? ["Assigned To"] : ["Engineer", "Captain"];
+          return { name: db.name, id: db.id, assigneeProps: defaultAssignees };
+        }
+      })
+    );
+    
+    this.taskDatabasesCache = resolved;
+    console.log(`✓ [RAG Init] Pre-cached assignee properties for ${this.taskDatabasesCache.length} task databases:`, 
+      this.taskDatabasesCache.map(d => `${d.name} (${d.assigneeProps.join(", ") || "none"})`)
+    );
   }
 
   /**
@@ -367,73 +428,66 @@ export class RAGService {
   }
 
   private async fetchTasksForUser(userId: string): Promise<string> {
-    const tasksDbId = this.getDatabaseIdByName("Tasks");
-    const fpoTasksDbId = this.getDatabaseIdByName("Bharat FPO Tasks");
-    
     let results: string[] = [];
     
-    if (tasksDbId) {
-      try {
-        console.log(`  💡 Smart Lookup: Programmatically querying main Tasks database for User ID: ${userId}...`);
-        const rawTasks = await this.mcpClient.callTool('API-query-data-source', {
-          data_source_id: tasksDbId,
-          filter: {
-            or: [
-              {
-                property: "Engineer",
-                people: {
-                  contains: userId
-                }
-              },
-              {
-                property: "Captain",
-                people: {
-                  contains: userId
-                }
-              }
-            ]
-          },
-          sorts: [
-            {
-              property: "Created time",
-              direction: "descending"
-            }
-          ],
-          page_size: 50
+    if (this.taskDatabasesCache.length === 0) {
+      // Fallback if cache is empty
+      const tasksDbId = this.getDatabaseIdByName("Tasks");
+      if (tasksDbId) {
+        this.taskDatabasesCache.push({
+          name: "Tasks",
+          id: tasksDbId,
+          assigneeProps: ["Engineer", "Captain"]
         });
-        results.push(`--- Main Tasks Database ---\n${compressMCPToolResult(rawTasks)}`);
-      } catch (err) {
-        results.push(`--- Main Tasks Database Error ---\nFailed to query Tasks database: ${(err as Error).message}`);
       }
     }
     
-    if (fpoTasksDbId) {
-      try {
-        console.log(`  💡 Smart Lookup: Programmatically querying Bharat FPO Tasks database for User ID: ${userId}...`);
-        const rawFPOTasks = await this.mcpClient.callTool('API-query-data-source', {
-          data_source_id: fpoTasksDbId,
-          filter: {
-            property: "Assigned To",
-            people: {
-              contains: userId
-            }
-          },
-          sorts: [
-            {
-              property: "Created time",
-              direction: "descending"
-            }
-          ],
-          page_size: 50
-        });
-        results.push(`--- Bharat FPO Tasks Database ---\n${compressMCPToolResult(rawFPOTasks)}`);
-      } catch (err) {
-        results.push(`--- Bharat FPO Tasks Database Error ---\nFailed to query Bharat FPO Tasks database: ${(err as Error).message}`);
-      }
-    }
+    await Promise.all(
+      this.taskDatabasesCache.map(async (db) => {
+        if (db.assigneeProps.length === 0) return;
+        
+        try {
+          console.log(`  💡 Smart Lookup: Programmatically querying "${db.name}" database for User ID: ${userId}...`);
+          
+          let filter: any = {};
+          if (db.assigneeProps.length === 1) {
+            filter = {
+              property: db.assigneeProps[0],
+              people: {
+                contains: userId
+              }
+            };
+          } else {
+            filter = {
+              or: db.assigneeProps.map(prop => ({
+                property: prop,
+                people: {
+                  contains: userId
+                }
+              }))
+            };
+          }
+          
+          const rawTasks = await this.mcpClient.callTool('API-query-data-source', {
+            data_source_id: db.id,
+            filter,
+            sorts: [
+              {
+                property: "Created time",
+                direction: "descending"
+              }
+            ],
+            page_size: 50
+          });
+          results.push(`--- ${db.name} Database ---\n${compressMCPToolResult(rawTasks)}`);
+        } catch (err) {
+          results.push(`--- ${db.name} Database Error ---\nFailed to query "${db.name}" database: ${(err as Error).message}`);
+        }
+      })
+    );
     
     if (results.length === 0) {
-      return "Error: No tasks databases found in workspace.";
+      return "Error: No task databases found or successfully queried in workspace.";
     }
     
     return results.join("\n\n");
@@ -457,6 +511,22 @@ export class RAGService {
   // ==========================================
 
   private getRouterSystemPrompt(userContext?: { name?: string; email?: string }): string {
+    // Generate the dynamic schema description for task databases
+    let schemaNotes = "";
+    if (this.taskDatabasesCache.length > 0) {
+      schemaNotes = "6. TASK DATABASES & ASSIGNEE PROPERTIES:\n" + 
+        this.taskDatabasesCache
+          .map(db => `   - "${db.name}" (ID: "${db.id}"): Query via filter on ${db.assigneeProps.map(p => `"${p}"`).join(" or ")} (people type).`)
+          .join("\n") + 
+        "\n   - CRITICAL: When querying a database, you MUST only filter by the exact property name listed above. Do NOT filter by properties that do not exist in that database, or it will cause a 400 Bad Request error!\n" +
+        "   - Do NOT query the \"Projects\" database (\"166a93c7-c391-81f3-b038-000b036e8032\") for task-specific questions, as the Projects database only contains high-level project metadata pages.";
+    } else {
+      schemaNotes = `6. BHARAT FPO PROJECT SCOPE & SCHEMAS:
+   - When asked about tasks in the "Bharat FPO" project (e.g. "is there any task for me in Bharat FPO project?"), they are looking for individual tasks. You MUST query BOTH the "Bharat FPO Tasks" database ("30ca93c7-c391-80e8-b59e-000bec7b10bc") and the main "Tasks" database ("166a93c7-c391-81d4-a2c6-000b52a15e4b").
+   - Do NOT query the "Projects" database ("166a93c7-c391-81f3-b038-000b036e8032") for task-specific questions, as the Projects database only contains high-level project metadata pages.
+   - Crucial Schema: In the "Bharat FPO Tasks" database, the assignee property is named "Assigned To" (people type) and NOT "Engineer" or "Captain".`;
+    }
+
     let prompt = `You are the Query Router for OrgBrain, a secure knowledge assistant.
 Your task is to analyze the user's message and determine which Notion database query or search tool calls are required to gather the necessary context to answer the question.
 
@@ -499,24 +569,7 @@ ${this.databasesMap}
    - When querying the Tasks database ("166a93c7-c391-81d4-a2c6-000b52a15e4b") or Bharat FPO Tasks database ("30ca93c7-c391-80e8-b59e-000bec7b10bc"), you MUST sort descending by creation date to get the most recently created or assigned tasks first. Pass:
      "sorts": [{"property": "Created time", "direction": "descending"}]
 
-6. BHARAT FPO PROJECT SCOPE & SCHEMAS:
-   - When asked about tasks in the "Bharat FPO" project (e.g. "is there any task for me in Bharat FPO project?"), they are looking for individual tasks. You MUST query BOTH the "Bharat FPO Tasks" database ("30ca93c7-c391-80e8-b59e-000bec7b10bc") and the main "Tasks" database ("166a93c7-c391-81d4-a2c6-000b52a15e4b").
-   - Do NOT query the "Projects" database ("166a93c7-c391-81f3-b038-000b036e8032") for task-specific questions, as the Projects database only contains high-level project metadata pages.
-   - Crucial Schema: In the "Bharat FPO Tasks" database, the assignee property is named "Assigned To" (people type) and NOT "Engineer" or "Captain".
-     Example Bharat FPO Tasks database query filter:
-     {
-       "data_source_id": "30ca93c7-c391-80e8-b59e-000bec7b10bc",
-       "filter": {
-         "property": "Assigned To",
-         "people": {
-           "contains": "USER_ID"
-         }
-       },
-       "sorts": [
-         { "property": "Created time", "direction": "descending" }
-       ],
-       "page_size": 50
-     }
+${schemaNotes}
 
 Output only the minimum necessary tool calls to answer the query.`;
 
