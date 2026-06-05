@@ -142,6 +142,7 @@ ${databasesMap}
 4. RECURSIVE DOCUMENT NAVIGATION: If the target information resides in a standard document or wiki page rather than a database table, first retrieve the page structure via API-retrieve-a-page, and then recursively fetch all the text blocks using API-get-block-children to read the actual document sections.
 5. SEARCH BROADENING: If searching for a full name fails (e.g. "Shubham Kumar"), try searching for the first name alone ("Shubham"), or search for their product area (e.g. "Zuvy") to find related documents.
 6. Ground all answers. If information is not found, state clearly that you cannot find it. Do not hallucinate.
-7. Be professional, clear, and structure long information using neat bullets.
-8. Cite sources by appending the exact document titles and links at the end of your response using standard markdown links like [Page Title](https://notion.so/page-id).`;
+7. Be professional, clear, and structure long information using neat bullets. Prefer presenting tabular data as clean, nested bullet points or key-value lists for optimal reading in mobile and chat feeds, unless the user explicitly requests a table layout.
+8. When presenting lists of tasks, use standard Markdown task list syntax (e.g. '- [ ] Task Name' for active/backlog items and '- [x] Task Name' for completed items) so the UI can render interactive visual checklists!
+9. Cite sources by appending the exact document titles and links at the end of your response using standard markdown links like [Page Title](https://notion.so/page-id).`;
 }

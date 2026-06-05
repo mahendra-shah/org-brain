@@ -117,6 +117,7 @@ export function maskToken(token: string): string {
  * - Converts standard markdown bold (**text**) ➡️ Slack bold (*text*)
  * - Converts standard markdown links ([Text](URL)) ➡️ Slack links (<URL|Text>)
  * - Converts headings (### Header) ➡️ *HEADER* (bold uppercase)
+ * - Translates raw markdown tables to clean indented bullet lists.
  * - Appends diagnostic metadata block if SHOW_DEV_METADATA=true.
  */
 export function formatSlackMessage(
@@ -125,6 +126,9 @@ export function formatSlackMessage(
   historyCount = 1
 ): string {
   let formatted = text;
+
+  // 0. Convert raw Markdown tables to clean indented bullet lists (since Slack doesn't support tables)
+  formatted = convertMarkdownTablesToLists(formatted);
 
   // 1. Convert standard Markdown Bold: **text** -> *text* (Slack mrkdwn uses single asterisks for bold)
   formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '*$1*');
@@ -137,6 +141,10 @@ export function formatSlackMessage(
     return `*${headerText.toUpperCase()}*`;
   });
 
+  // 3b. Convert standard Markdown Checkboxes to Slack emojis
+  formatted = formatted.replace(/\[ \]/g, '⬜');
+  formatted = formatted.replace(/\[[xX]\]/g, '✅');
+
   // 4. Append Developer Diagnostic Codeblock if SHOW_DEV_METADATA is enabled (Pro Tip check!)
   if (config.showDevMetadata && usage && (usage.inputTokens > 0 || usage.outputTokens > 0)) {
     const total = usage.inputTokens + usage.outputTokens;
@@ -146,6 +154,53 @@ export function formatSlackMessage(
   }
 
   return formatted;
+}
+
+/**
+ * Parses raw Markdown table blocks and translates them into clean bulleted lists
+ * with nested details. This allows tabular data to be readable on Slack and mobile.
+ */
+function convertMarkdownTablesToLists(text: string): string {
+  const tableRegex = /((?:^|\n)\|[^\n]+\|+(?:\n\|[^\n]+\|+)+)/g;
+  return text.replace(tableRegex, (match) => {
+    const lines = match.trim().split('\n');
+    if (lines.length < 3) return match; // Not a valid table
+
+    const headers = lines[0]
+      .split('|')
+      .map(h => h.trim())
+      .filter((h, idx, arr) => idx > 0 && idx < arr.length - 1);
+
+    const isDivider = lines[1].includes('-') && lines[1].includes('|');
+    if (!isDivider) return match;
+
+    const listItems = [];
+    for (let i = 2; i < lines.length; i++) {
+      const cells = lines[i]
+        .split('|')
+        .map(c => c.trim())
+        .filter((c, idx, arr) => idx > 0 && idx < arr.length - 1);
+
+      if (cells.length === 0) continue;
+
+      const title = cells[0];
+      let itemStr = `• *${title}*`;
+
+      const details = [];
+      for (let j = 1; j < Math.min(headers.length, cells.length); j++) {
+        if (headers[j] && cells[j]) {
+          details.push(`  - *${headers[j]}*: ${cells[j]}`);
+        }
+      }
+
+      if (details.length > 0) {
+        itemStr += `\n${details.join('\n')}`;
+      }
+      listItems.push(itemStr);
+    }
+
+    return `\n${listItems.join('\n')}\n`;
+  });
 }
 
 function cleanVerboseMetadata(obj: any): any {
