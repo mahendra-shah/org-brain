@@ -459,7 +459,7 @@ Output only the minimum necessary tool calls to answer the query.`;
     if (userContext && (userContext.name || userContext.email)) {
       prompt += `\n\n5. SENDER IDENTITY RESOLUTION (me/my/I):
    - The employee asking this query is: Name: "${userContext.name}", Email: "${userContext.email || 'unknown'}".
-   - If the user uses self-referential terms like "my", "me", "myself", "I", or asks for their own tasks/assignments (e.g. "what is my high priority task?", "what are my pending tasks?"), resolve it to this identity ("${userContext.name}").
+   - If the user uses self-referential terms (e.g. "my", "me", "myself", "I", "should I work on", "do I need to", "assigned to me"), resolve it to this identity ("${userContext.name}").
    - Find tasks assigned to them (using their user ID if mapped above, or looking them up by calling 'API-get-users').
    - This mapping only applies to user-specific queries (tasks, tickets, assignments). It does not apply to general projects, documents, or team policies.`;
     }
@@ -481,7 +481,8 @@ CRITICAL INSTRUCTIONS:
     if (userContext && userContext.name) {
       prompt += `\n\n6. PERSONALIZATION / SENDER CONTEXT:
    - The user asking this question is "${userContext.name}".
-   - If the Notion context contains tasks assigned to them, address them directly (e.g. "You have 3 active tasks" or "Your high-priority tasks are:") to make the response natural and personal.`;
+   - Address them directly and naturally (e.g., "Hi Mahendra, here are your active tasks..." or "Your main focus is...").
+   - CRITICAL: Speak naturally and confidently as if you already know exactly who they are. Do NOT write meta-explanations or explain how you resolved their identity. Never say "Since you're asking about 'my' task, I'm resolving this to your identity: Mahendra" or "From the data fetched above". Just directly give them their tasks.`;
     }
 
     return prompt;
