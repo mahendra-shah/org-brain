@@ -123,7 +123,9 @@ export function maskToken(token: string): string {
 export function formatSlackMessage(
   text: string, 
   usage?: { inputTokens: number, outputTokens: number }, 
-  historyCount = 1
+  historyCount = 1,
+  cached?: boolean,
+  turns?: number
 ): string {
   let formatted = text;
 
@@ -150,7 +152,17 @@ export function formatSlackMessage(
     const total = usage.inputTokens + usage.outputTokens;
     const modelName = config.llmProvider === 'deepseek' ? config.deepseek.model : config.claude.model;
     
-    formatted += `\n\n\`\`\`\n[OrgBrain Dev Metadata]\n• Provider: ${config.llmProvider.toUpperCase()} (${modelName})\n• Tokens: Input: ${usage.inputTokens} | Output: ${usage.outputTokens} | Total: ${total}\n• Thread Context: ${historyCount} messages\n\`\`\``;
+    let meta = `\n\n\`\`\`\n[OrgBrain Dev Metadata]\n• Provider: ${config.llmProvider.toUpperCase()} (${modelName})\n`;
+    meta += `• Tokens: Input: ${usage.inputTokens} | Output: ${usage.outputTokens} | Total: ${total}\n`;
+    if (cached !== undefined) {
+      meta += `• Cache Hit: ${cached ? '✅ Yes (Free Turn)' : '❌ No (Cache Miss)'}\n`;
+    }
+    if (turns !== undefined) {
+      meta += `• RAG Turns: ${turns}\n`;
+    }
+    meta += `• Thread Context: ${historyCount} messages\n\`\`\``;
+    
+    formatted += meta;
   }
 
   return formatted;

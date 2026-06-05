@@ -1,12 +1,13 @@
 import { NotionMCPClient } from './mcp.js';
 import { LLMClient } from './llm.js';
 import { startWebServer } from './server.js';
+import { RAGService } from './rag.js';
 import pkg from '@slack/bolt';
 const { App } = pkg;
 import { config } from './config.js';
-import { splitMessage, compressMCPToolResult, formatSlackMessage, cleanHistoryMessage } from './utils/helpers.js';
+import { splitMessage, formatSlackMessage, cleanHistoryMessage } from './utils/helpers.js';
 import { isQuerySensitive, getSensitiveBlockMessage } from './utils/filters.js';
-import { fetchWorkspaceDatabases, getSystemPrompt } from './utils/notion.js';
+import { fetchWorkspaceDatabases } from './utils/notion.js';
 
 // Global clients
 const mcpClient = new NotionMCPClient();
@@ -31,7 +32,7 @@ if (config.slack.botToken && config.slack.appToken) {
   });
 }
 
-async function startSlackBot(mcpTools: any[], databasesMap: string) {
+async function startSlackBot(ragService: RAGService) {
   if (!slackApp) {
     console.warn("⚠️ Slack tokens not fully configured in .env. Skipping Slack bot start (Web-Only Mode active).");
     return;
@@ -67,15 +68,6 @@ async function startSlackBot(mcpTools: any[], databasesMap: string) {
       timestamp: event.ts
     });
 
-    // 1. Filter out heavy writing/modifying tools to shrink system prompt size from ~20k to <1k tokens (95% savings!)
-    const filteredTools = mcpTools.filter(tool => {
-      const name = tool.name.toLowerCase();
-      return name.startsWith('api-get-') || 
-             name.startsWith('api-retrieve-') || 
-             name.includes('search') || 
-             name.includes('query');
-    });
-
     try {
       // Fetch stateless conversational history in thread (Context recovery!)
       let history: any[] = [];
@@ -95,65 +87,23 @@ async function startSlackBot(mcpTools: any[], databasesMap: string) {
               content: cleanHistoryMessage(msg.text || '')
             }));
         }
-      } else {
-        // Drop own bot tag from initial prompt to avoid confusing the LLM
-        const cleanText = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
-        history = [{ role: 'user', content: cleanText }];
       }
 
-      const persistentHistoryCount = history.length;
-      const systemPrompt = getSystemPrompt(databasesMap);
+      // If we have history replies, slice off the last one (which is the current message itself)
+      const pastHistory = history.length > 0 ? history.slice(0, -1) : [];
+      const persistentHistoryCount = pastHistory.length;
 
-      // Prompt LLM with context & tools
-      let result = await llmClient.generateResponse(systemPrompt, history as any, filteredTools);
-      
-      // Multi-Turn RAG Tool Execution Loop (Supervisor active!)
-      let turns = 0;
-      const maxTurns = 10; // Predictable upper cap
+      // Execute query through unified RAG service
+      const result = await ragService.execute(cleanText, pastHistory);
 
-      while (result.toolCalls && result.toolCalls.length > 0 && turns < maxTurns) {
-        turns++;
-        const toolResults = [];
-        
-        for (const tc of result.toolCalls) {
-          try {
-            const rawResult = await mcpClient.callTool(tc.name, tc.args);
-            toolResults.push({
-              toolCallId: tc.id,
-              toolName: tc.name,
-              role: 'tool' as const,
-              content: compressMCPToolResult(rawResult)
-            });
-          } catch (toolError) {
-            console.error(`Notion tool execution failed for ${tc.name}:`, toolError);
-            toolResults.push({
-              toolCallId: tc.id,
-              toolName: tc.name,
-              role: 'tool' as const,
-              content: `Error querying page context: ${(toolError as Error).message}`
-            });
-          }
-        }
-
-        // Push assistant message with toolCalls
-        history.push({
-          role: 'assistant',
-          content: result.text || null,
-          toolCalls: result.toolCalls
-        });
-
-        // Push tool responses back to history
-        history.push({
-          role: 'tool_responses',
-          responses: toolResults
-        });
-
-        // Call LLM again, keeping tools active!
-        result = await llmClient.generateResponse(systemPrompt, history as any, filteredTools);
-      }
-
-      // 5. Format response text natively for Slack mrkdwn (links, headings, and discrete token usage)
-      const formattedSlackText = formatSlackMessage(result.text, result.usage, persistentHistoryCount);
+      // Format response text natively for Slack mrkdwn (links, headings, and discrete token usage)
+      const formattedSlackText = formatSlackMessage(
+        result.text, 
+        result.usage, 
+        persistentHistoryCount + 1, 
+        result.cached, 
+        result.turns
+      );
 
       // Send replies back safely, splitting if response exceeds Slack's character limit
       const chunks = splitMessage(formattedSlackText, 3800);
@@ -202,16 +152,18 @@ async function startSlackBot(mcpTools: any[], databasesMap: string) {
     console.log(`🔧 OrgBrain Boot Configurations — Provider: ${config.llmProvider.toUpperCase()}, Show Dev Metadata: ${config.showDevMetadata}`);
     // 1. Start shared Notion MCP subprocess
     await mcpClient.start();
-    const mcpTools = await mcpClient.getTools();
 
     // 2. Pre-fetch workspace databases
     const databasesMap = await fetchWorkspaceDatabases(mcpClient);
 
-    // 3. Boot Express API and static server
-    startWebServer(mcpClient, llmClient, databasesMap);
+    // 3. Initialize RAG Orchestrator
+    const ragService = new RAGService(mcpClient, llmClient, databasesMap);
 
-    // 4. Gracefully boot Slack (in parallel background, catching start failures)
-    startSlackBot(mcpTools, databasesMap).catch((err) => {
+    // 4. Boot Express API and static server
+    startWebServer(ragService);
+
+    // 5. Gracefully boot Slack (in parallel background, catching start failures)
+    startSlackBot(ragService).catch((err) => {
       console.warn("⚠️ Slack bot failed to boot in background. Continuing in Web-Only Mode!", err);
     });
 
@@ -220,6 +172,8 @@ async function startSlackBot(mcpTools: any[], databasesMap: string) {
     process.exit(1);
   }
 })();
+
+
 
 // Graceful shutdown listeners
 const handleShutdown = async (signal: string) => {
