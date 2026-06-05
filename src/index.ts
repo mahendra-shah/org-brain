@@ -93,8 +93,21 @@ async function startSlackBot(ragService: RAGService) {
       const pastHistory = history.length > 0 ? history.slice(0, -1) : [];
       const persistentHistoryCount = pastHistory.length;
 
+      // Fetch user profile from Slack info to resolve "me/my" context
+      let userContext: { name?: string; email?: string } = {};
+      try {
+        const userInfo = await client.users.info({ user: event.user });
+        if (userInfo.ok && userInfo.user) {
+          userContext.name = userInfo.user.profile.real_name || userInfo.user.name;
+          userContext.email = userInfo.user.profile.email;
+          console.log(`👤 Slack query from: "${userContext.name}" (${userContext.email || 'No email'})`);
+        }
+      } catch (err) {
+        console.warn("⚠️ Could not fetch user profile info from Slack API:", (err as Error).message);
+      }
+
       // Execute query through unified RAG service
-      const result = await ragService.execute(cleanText, pastHistory);
+      const result = await ragService.execute(cleanText, pastHistory, userContext);
 
       // Format response text natively for Slack mrkdwn (links, headings, and discrete token usage)
       const formattedSlackText = formatSlackMessage(

@@ -95,7 +95,7 @@ export class RAGService {
   /**
    * Executes the RAG flow.
    */
-  public async execute(message: string, history: any[]): Promise<RAGResponse> {
+  public async execute(message: string, history: any[], userContext?: { name?: string; email?: string }): Promise<RAGResponse> {
     // 1. Cache Lookup
     const cachedResponse = this.cache.get(message, history);
     if (cachedResponse) {
@@ -132,7 +132,7 @@ export class RAGService {
     // STAGE 1: ROUTING & PARAM EXTRACTION
     // ==========================================
     turns++;
-    const routerPrompt = this.getRouterSystemPrompt();
+    const routerPrompt = this.getRouterSystemPrompt(userContext);
     
     // Router LLM call - ask LLM to extract tool calls
     const routerResult = await this.llmClient.generateResponse(
@@ -217,7 +217,7 @@ export class RAGService {
     // STAGE 3: FINAL SYNTHESIS (GENERATOR)
     // ==========================================
     turns++;
-    const generatorPrompt = this.getGeneratorSystemPrompt();
+    const generatorPrompt = this.getGeneratorSystemPrompt(userContext);
     
     // Construct single-turn synthesis input (No tool definitions passed to keep context small!)
     const generatorHistory = [
@@ -417,8 +417,8 @@ export class RAGService {
   // SYSTEM PROMPT BUILDERS
   // ==========================================
 
-  private getRouterSystemPrompt(): string {
-    return `You are the Query Router for OrgBrain, a secure knowledge assistant.
+  private getRouterSystemPrompt(userContext?: { name?: string; email?: string }): string {
+    let prompt = `You are the Query Router for OrgBrain, a secure knowledge assistant.
 Your task is to analyze the user's message and determine which Notion database query or search tool calls are required to gather the necessary context to answer the question.
 
 CRITICAL INSTRUCTIONS:
@@ -455,10 +455,20 @@ ${this.databasesMap}
    - For general document searches (e.g. policies, onboarding wikis): Call 'API-post-search' with the key terms.
 
 Output only the minimum necessary tool calls to answer the query.`;
+
+    if (userContext && (userContext.name || userContext.email)) {
+      prompt += `\n\n5. SENDER IDENTITY RESOLUTION (me/my/I):
+   - The employee asking this query is: Name: "${userContext.name}", Email: "${userContext.email || 'unknown'}".
+   - If the user uses self-referential terms like "my", "me", "myself", "I", or asks for their own tasks/assignments (e.g. "what is my high priority task?", "what are my pending tasks?"), resolve it to this identity ("${userContext.name}").
+   - Find tasks assigned to them (using their user ID if mapped above, or looking them up by calling 'API-get-users').
+   - This mapping only applies to user-specific queries (tasks, tickets, assignments). It does not apply to general projects, documents, or team policies.`;
+    }
+
+    return prompt;
   }
 
-  private getGeneratorSystemPrompt(): string {
-    return `You are OrgBrain, the secure knowledge Oracle for our organization.
+  private getGeneratorSystemPrompt(userContext?: { name?: string; email?: string }): string {
+    let prompt = `You are OrgBrain, the secure knowledge Oracle for our organization.
 Your task is to synthesize a professional, accurate, and grounded response to the employee's query strictly using the Notion context provided in the conversation.
 
 CRITICAL INSTRUCTIONS:
@@ -467,5 +477,13 @@ CRITICAL INSTRUCTIONS:
 3. When presenting lists of tasks, use standard Markdown task list syntax (e.g. '- [ ] Task Name' for active/backlog items and '- [x] Task Name' for completed items) so the UI can render interactive visual checklists.
 4. Filter out inactive items (e.g., status is "Released/ Done", "Complete", or "Archived") in-memory when asked what someone is working on, presenting only what they are actively working on now.
 5. Cite sources by appending the exact document titles and links at the end of your response using standard markdown links like [Page Title](https://notion.so/page-id).`;
+
+    if (userContext && userContext.name) {
+      prompt += `\n\n6. PERSONALIZATION / SENDER CONTEXT:
+   - The user asking this question is "${userContext.name}".
+   - If the Notion context contains tasks assigned to them, address them directly (e.g. "You have 3 active tasks" or "Your high-priority tasks are:") to make the response natural and personal.`;
+    }
+
+    return prompt;
   }
 }
