@@ -229,13 +229,12 @@ function cleanVerboseMetadata(obj: any): any {
     'title', 'name', 'type', 'text', 'plain_text', 'content', 
     'rich_text', 'results', 'properties', 'url', 'expression',
     'cells', 'language', 'code', 'checked', 'select', 'multi_select',
-    'number', 'date', 'start', 'end', 'status'
+    'number', 'date', 'start', 'end', 'status', 'created_time', 'last_edited_time'
   ];
   
   for (const [key, value] of Object.entries(obj)) {
     // Exclude verbose API metadata, but retain critical id and object type tags for tool chaining
     if ([
-      'created_time', 'last_edited_time', 
       'created_by', 'last_edited_by', 'avatar_url', 'href',
       'annotations', 'color', 'archived', 'has_children', 'parent'
     ].includes(key)) {

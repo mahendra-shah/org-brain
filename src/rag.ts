@@ -368,36 +368,75 @@ export class RAGService {
 
   private async fetchTasksForUser(userId: string): Promise<string> {
     const tasksDbId = this.getDatabaseIdByName("Tasks");
-    if (!tasksDbId) {
-      console.warn("⚠️ Could not locate Tasks database in workspace schema map. Programmatic tasks fetch skipped.");
-      return "Error: Tasks database ID not found.";
-    }
-
-    try {
-      const rawTasks = await this.mcpClient.callTool('API-query-data-source', {
-        data_source_id: tasksDbId,
-        filter: {
-          or: [
-            {
-              property: "Engineer",
-              people: {
-                contains: userId
+    const fpoTasksDbId = this.getDatabaseIdByName("Bharat FPO Tasks");
+    
+    let results: string[] = [];
+    
+    if (tasksDbId) {
+      try {
+        console.log(`  💡 Smart Lookup: Programmatically querying main Tasks database for User ID: ${userId}...`);
+        const rawTasks = await this.mcpClient.callTool('API-query-data-source', {
+          data_source_id: tasksDbId,
+          filter: {
+            or: [
+              {
+                property: "Engineer",
+                people: {
+                  contains: userId
+                }
+              },
+              {
+                property: "Captain",
+                people: {
+                  contains: userId
+                }
               }
-            },
+            ]
+          },
+          sorts: [
             {
-              property: "Captain",
-              people: {
-                contains: userId
-              }
+              property: "Created time",
+              direction: "descending"
             }
-          ]
-        },
-        page_size: 50
-      });
-      return compressMCPToolResult(rawTasks);
-    } catch (err) {
-      return `Failed to query Tasks database: ${(err as Error).message}`;
+          ],
+          page_size: 50
+        });
+        results.push(`--- Main Tasks Database ---\n${compressMCPToolResult(rawTasks)}`);
+      } catch (err) {
+        results.push(`--- Main Tasks Database Error ---\nFailed to query Tasks database: ${(err as Error).message}`);
+      }
     }
+    
+    if (fpoTasksDbId) {
+      try {
+        console.log(`  💡 Smart Lookup: Programmatically querying Bharat FPO Tasks database for User ID: ${userId}...`);
+        const rawFPOTasks = await this.mcpClient.callTool('API-query-data-source', {
+          data_source_id: fpoTasksDbId,
+          filter: {
+            property: "Assigned To",
+            people: {
+              contains: userId
+            }
+          },
+          sorts: [
+            {
+              property: "Created time",
+              direction: "descending"
+            }
+          ],
+          page_size: 50
+        });
+        results.push(`--- Bharat FPO Tasks Database ---\n${compressMCPToolResult(rawFPOTasks)}`);
+      } catch (err) {
+        results.push(`--- Bharat FPO Tasks Database Error ---\nFailed to query Bharat FPO Tasks database: ${(err as Error).message}`);
+      }
+    }
+    
+    if (results.length === 0) {
+      return "Error: No tasks databases found in workspace.";
+    }
+    
+    return results.join("\n\n");
   }
 
   private getDatabaseIdByName(name: string): string | null {
@@ -442,22 +481,47 @@ ${this.databasesMap}
      
      Example Tasks database query filter:
      {
-       "data_source_id": "TASKS_DATABASE_ID",
+       "data_source_id": "166a93c7-c391-81d4-a2c6-000b52a15e4b",
        "filter": {
          "or": [
            { "property": "Engineer", "people": { "contains": "USER_ID" } },
            { "property": "Captain", "people": { "contains": "USER_ID" } }
          ]
        },
+       "sorts": [
+         { "property": "Created time", "direction": "descending" }
+       ],
        "page_size": 50
      }
-   - For project tracking: Call 'API-query-data-source' on the Projects database.
    - For general document searches (e.g. policies, onboarding wikis): Call 'API-post-search' with the key terms.
+   
+5. CHRONOLOGICAL SORTING:
+   - When querying the Tasks database ("166a93c7-c391-81d4-a2c6-000b52a15e4b") or Bharat FPO Tasks database ("30ca93c7-c391-80e8-b59e-000bec7b10bc"), you MUST sort descending by creation date to get the most recently created or assigned tasks first. Pass:
+     "sorts": [{"property": "Created time", "direction": "descending"}]
+
+6. BHARAT FPO PROJECT SCOPE & SCHEMAS:
+   - When asked about tasks in the "Bharat FPO" project (e.g. "is there any task for me in Bharat FPO project?"), they are looking for individual tasks. You MUST query BOTH the "Bharat FPO Tasks" database ("30ca93c7-c391-80e8-b59e-000bec7b10bc") and the main "Tasks" database ("166a93c7-c391-81d4-a2c6-000b52a15e4b").
+   - Do NOT query the "Projects" database ("166a93c7-c391-81f3-b038-000b036e8032") for task-specific questions, as the Projects database only contains high-level project metadata pages.
+   - Crucial Schema: In the "Bharat FPO Tasks" database, the assignee property is named "Assigned To" (people type) and NOT "Engineer" or "Captain".
+     Example Bharat FPO Tasks database query filter:
+     {
+       "data_source_id": "30ca93c7-c391-80e8-b59e-000bec7b10bc",
+       "filter": {
+         "property": "Assigned To",
+         "people": {
+           "contains": "USER_ID"
+         }
+       },
+       "sorts": [
+         { "property": "Created time", "direction": "descending" }
+       ],
+       "page_size": 50
+     }
 
 Output only the minimum necessary tool calls to answer the query.`;
 
     if (userContext && (userContext.name || userContext.email)) {
-      prompt += `\n\n5. SENDER IDENTITY RESOLUTION (me/my/I):
+      prompt += `\n\n7. SENDER IDENTITY RESOLUTION (me/my/I):
    - The employee asking this query is: Name: "${userContext.name}", Email: "${userContext.email || 'unknown'}".
    - If the user uses self-referential terms (e.g. "my", "me", "myself", "I", "should I work on", "do I need to", "assigned to me"), resolve it to this identity ("${userContext.name}").
    - Find tasks assigned to them (using their user ID if mapped above, or looking them up by calling 'API-get-users').
@@ -474,12 +538,20 @@ Your task is to synthesize a professional, accurate, and grounded response to th
 CRITICAL INSTRUCTIONS:
 1. Base your answer ONLY on the provided Notion context data. If the context does not contain the answer, state clearly that you cannot find it. Do not make up or hallucinate any facts.
 2. Structure your response professionally. Use clean bullet points and headings.
-3. When presenting lists of tasks, use standard Markdown task list syntax (e.g. '- [ ] Task Name' for active/backlog items and '- [x] Task Name' for completed items) so the UI can render interactive visual checklists.
-4. Filter out inactive items (e.g., status is "Released/ Done", "Complete", or "Archived") in-memory when asked what someone is working on, presenting only what they are actively working on now.
-5. Cite sources by appending the exact document titles and links at the end of your response using standard markdown links like [Page Title](https://notion.so/page-id).`;
+3. When presenting lists of tasks, use standard Markdown task list syntax (e.g. '- [ ] Task Name' for active/backlog items) so the UI can render interactive visual checklists.
+4. STRICT FILTERING (NO COMPLETED TASKS): 
+   - Focus ONLY on active, pending, or in-progress tasks (e.g. status is "In Development", "QA", "Ready for Dev", "Backlog", "In progress", "Scoping", "Staging").
+   - You MUST NEVER list completed, released, done, or archived tasks (e.g. status is "Released/ Done", "Complete", "Prod Ready", "Ready for handover", "Archived") under any circumstances, unless the user's question explicitly asks for completed, past, or history tasks. If the user asks "what are my tasks?" or "is there any task for me...", you must NOT list completed/released tasks.
+5. STRICT PROJECT SCOPING:
+   - If the user asks about tasks in a specific project (e.g., "Bharat FPO" project), you MUST only include tasks that belong to that project. For tasks in the main Tasks database, check if their Project or Product rollup/relation property contains the requested project name (e.g. "Bharat FPO"). Do NOT list tasks from other projects.
+6. NO BACKLOG/OTHER PEOPLES TASKS FOR USER QUERIES:
+   - If the user asks "is there any task for me in project X?" and you find zero tasks assigned to them in that project, you MUST state "There are no tasks assigned to you in project X." You MUST NOT list the general backlog or tasks assigned to other team members in that project.
+7. CHRONOLOGICAL ORDERING:
+   - Present the tasks strictly in chronological order (most recently created or assigned tasks first) based on their "Created time" or "created_time" values. Keep the newest tasks at the top.
+8. Cite sources by appending the exact document titles and links at the end of your response using standard markdown links like [Page Title](https://notion.so/page-id).`;
 
     if (userContext && userContext.name) {
-      prompt += `\n\n6. PERSONALIZATION / SENDER CONTEXT:
+      prompt += `\n\n9. PERSONALIZATION / SENDER CONTEXT:
    - The user asking this question is "${userContext.name}".
    - Address them directly and naturally (e.g., "Hi Mahendra, here are your active tasks..." or "Your main focus is...").
    - CRITICAL: Speak naturally and confidently as if you already know exactly who they are. Do NOT write meta-explanations or explain how you resolved their identity. Never say "Since you're asking about 'my' task, I'm resolving this to your identity: Mahendra" or "From the data fetched above". Just directly give them their tasks.`;
