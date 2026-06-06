@@ -203,3 +203,17 @@ const handleShutdown = async (signal: string) => {
 
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+// Catch unhandled socket-mode state machine crashes or promise rejections to keep the RAG API server online
+process.on('uncaughtException', (err) => {
+  console.error("🚨 Uncaught Exception encountered:", err);
+  if (err.message?.includes("Unhandled event") || err.stack?.includes("socket-mode")) {
+    console.warn("⚠️ Slack Socket Mode websocket state machine error caught gracefully. Server remains active.");
+  } else {
+    process.exit(1);
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error("🚨 Unhandled Rejection at:", promise, "reason:", reason);
+});
