@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const config = {
-  llmProvider: (process.env.LLM_PROVIDER || 'deepseek').toLowerCase() as 'deepseek' | 'claude',
+  llmProvider: (process.env.LLM_PROVIDER || 'deepseek').toLowerCase() as 'deepseek' | 'claude' | 'gemini',
   
   deepseek: {
     apiKey: process.env.DEEPSEEK_API_KEY || '',
@@ -13,6 +13,12 @@ export const config = {
   claude: {
     apiKey: process.env.ANTHROPIC_API_KEY || '',
     model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest',
+  },
+
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || '',
+    apiUrl: process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   },
   
   slack: {
@@ -36,6 +42,9 @@ if (config.llmProvider === 'deepseek' && !config.deepseek.apiKey) {
 }
 if (config.llmProvider === 'claude' && !config.claude.apiKey) {
   throw new Error("Missing ANTHROPIC_API_KEY in .env for claude provider selection.");
+}
+if (config.llmProvider === 'gemini' && !config.gemini.apiKey) {
+  throw new Error("Missing GEMINI_API_KEY in .env for gemini provider selection.");
 }
 if (!config.notion.apiToken) {
   throw new Error("Missing NOTION_API_TOKEN in .env. Notion integration token is required.");

@@ -5,6 +5,7 @@ import { config } from './config.js';
 export class LLMClient {
   private openaiClient: OpenAI | null = null;
   private anthropicClient: Anthropic | null = null;
+  private geminiClient: OpenAI | null = null;
 
   constructor() {
     this.initializeClients();
@@ -24,14 +25,21 @@ export class LLMClient {
         apiKey: config.claude.apiKey
       });
     }
+    // Gemini API is OpenAI-compatible
+    if (config.gemini.apiKey) {
+      this.geminiClient = new OpenAI({
+        apiKey: config.gemini.apiKey,
+        baseURL: config.gemini.apiUrl
+      });
+    }
   }
 
   /**
    * Translates standardized MCP tool definitions to standard OpenAI / Anthropic format.
    */
-  formatToolsForLLM(mcpTools: any[], targetProvider: 'deepseek' | 'claude') {
-    if (targetProvider === 'deepseek') {
-      // OpenAI/DeepSeek schema
+  formatToolsForLLM(mcpTools: any[], targetProvider: 'deepseek' | 'claude' | 'gemini') {
+    if (targetProvider === 'deepseek' || targetProvider === 'gemini') {
+      // OpenAI/DeepSeek/Gemini schema
       return mcpTools.map(tool => ({
         type: 'function',
         function: {
@@ -51,7 +59,7 @@ export class LLMClient {
   }
 
   /**
-   * Generates a grounded response. Automatically fails over to Claude if DeepSeek experiences an outage or timeout.
+   * Generates a grounded response. Automatically fails over to Gemini if primary experiences an outage or timeout.
    */
   async generateResponse(
     systemPrompt: string,
@@ -62,14 +70,37 @@ export class LLMClient {
     try {
       if (provider === 'deepseek') {
         return await this.queryDeepSeek(systemPrompt, history, tools);
+      } else if (provider === 'gemini') {
+        return await this.queryGemini(systemPrompt, history, tools);
       } else {
         return await this.queryClaude(systemPrompt, history, tools);
       }
     } catch (error) {
       console.error(`🚨 Primary LLM provider (${provider}) failed. Triggering resilience failover...`, error);
       
-      // If DeepSeek was primary and Claude credentials exist, fall back to Claude
-      if (provider === 'deepseek' && this.anthropicClient) {
+      // If primary failed and Gemini credentials exist, fall back to Gemini
+      if (provider !== 'gemini' && this.geminiClient) {
+        console.warn("🔄 Failover: Querying Gemini to answer the user query...");
+        try {
+          return await this.queryGemini(systemPrompt, history, tools);
+        } catch (fallbackError) {
+          console.error("Critical: Fallback provider (Gemini) also failed!", fallbackError);
+          // If Gemini fallback also fails, attempt Claude fallback as secondary
+          if (provider !== 'claude' && this.anthropicClient) {
+            console.warn("🔄 Secondary Failover: Querying Claude 3.5 Sonnet...");
+            try {
+              return await this.queryClaude(systemPrompt, history, tools);
+            } catch (claudeError) {
+              console.error("Critical: Secondary fallback provider (Claude) also failed!", claudeError);
+              throw claudeError;
+            }
+          }
+          throw fallbackError;
+        }
+      }
+      
+      // If primary was Gemini and failed, and Claude credentials exist, fall back to Claude
+      if (provider !== 'claude' && this.anthropicClient) {
         console.warn("🔄 Failover: Querying Claude 3.5 Sonnet to answer the user query...");
         try {
           return await this.queryClaude(systemPrompt, history, tools);
@@ -169,6 +200,36 @@ export class LLMClient {
 
     const response = await this.openaiClient.chat.completions.create({
       model: config.deepseek.model,
+      messages: messages as any,
+      tools: formattedTools.length > 0 ? (formattedTools as any) : undefined,
+      tool_choice: formattedTools.length > 0 ? 'auto' : undefined
+    });
+
+    const choice = response.choices[0].message;
+    return {
+      text: choice.content || '',
+      toolCalls: choice.tool_calls?.map(tc => ({
+        id: tc.id,
+        name: tc.function.name,
+        args: JSON.parse(tc.function.arguments)
+      })) || [],
+      usage: response.usage ? {
+        inputTokens: response.usage.prompt_tokens,
+        outputTokens: response.usage.completion_tokens
+      } : undefined
+    };
+  }
+
+  private async queryGemini(systemPrompt: string, history: any[], tools: any[]) {
+    if (!this.geminiClient) throw new Error("Gemini OpenAI-compatible client is not configured");
+    const formattedTools = this.formatToolsForLLM(tools, 'gemini');
+    
+    // In Gemini compatibility, the system prompt is injected as the first system message
+    const nativeMessages = this.mapMessagesForOpenAI(history);
+    const messages = [{ role: 'system', content: systemPrompt }, ...nativeMessages];
+
+    const response = await this.geminiClient.chat.completions.create({
+      model: config.gemini.model,
       messages: messages as any,
       tools: formattedTools.length > 0 ? (formattedTools as any) : undefined,
       tool_choice: formattedTools.length > 0 ? 'auto' : undefined

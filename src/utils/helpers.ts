@@ -150,7 +150,7 @@ export function formatSlackMessage(
   // 4. Append Developer Diagnostic Codeblock if SHOW_DEV_METADATA is enabled (Pro Tip check!)
   if (config.showDevMetadata && usage && (usage.inputTokens > 0 || usage.outputTokens > 0)) {
     const total = usage.inputTokens + usage.outputTokens;
-    const modelName = config.llmProvider === 'deepseek' ? config.deepseek.model : config.claude.model;
+    const modelName = config.llmProvider === 'deepseek' ? config.deepseek.model : (config.llmProvider === 'gemini' ? config.gemini.model : config.claude.model);
     
     let meta = `\n\n\`\`\`\n[OrgBrain Dev Metadata]\n• Provider: ${config.llmProvider.toUpperCase()} (${modelName})\n`;
     meta += `• Tokens: Input: ${usage.inputTokens} | Output: ${usage.outputTokens} | Total: ${total}\n`;

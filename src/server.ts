@@ -21,7 +21,7 @@ export function startWebServer(ragService: RAGService) {
   app.get('/api/config', (req, res) => {
     res.json({
       llmProvider: config.llmProvider,
-      model: config.llmProvider === 'deepseek' ? config.deepseek.model : config.claude.model,
+      model: config.llmProvider === 'deepseek' ? config.deepseek.model : (config.llmProvider === 'gemini' ? config.gemini.model : config.claude.model),
       slackConfigured: !!(config.slack.botToken && config.slack.appToken),
       showDevMetadata: config.showDevMetadata,
       notionToken: config.showDevMetadata ? config.notion.apiToken : undefined
