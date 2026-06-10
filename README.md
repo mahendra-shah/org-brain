@@ -27,29 +27,46 @@ Engineered for production reliability, it implements automated multi-LLM failove
 ## 🚀 Architecture Blueprint
 
 ```mermaid
-sequenceDiagram
-    participant User as Slack / Web User
-    participant App as OmniBrain Service
-    participant Cache as Memory Cache
-    participant Router as LLM Router
-    participant Notion as Notion MCP (Subprocess)
-    participant Gen as LLM Generator
+flowchart TD
+    %% Node Styling Definitions
+    classDef userNode fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff;
+    classDef serviceNode fill:#8b5cf6,stroke:#6d28d9,stroke-width:2px,color:#fff;
+    classDef cacheNode fill:#10b981,stroke:#047857,stroke-width:2px,color:#fff;
+    classDef llmNode fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff;
+    classDef mcpNode fill:#ef4444,stroke:#b91c1c,stroke-width:2px,color:#fff;
 
-    User->>App: Submits Query
-    App->>Cache: Check Cached Response
-    alt Cache Hit
-        Cache-->>User: Return Cached Result (0ms)
-    else Cache Miss
-        App->>Router: Turn 1: Router Prompt + Query
-        Router-->>App: Return Tool Calls JSON
-        App->>Notion: Execute Tool Calls (Parallel)
-        Notion-->>App: Return Cleaned Context
-        App->>App: Programmatic Context Enhancement
-        App->>Gen: Turn 2: Inject Context + Generate Answer
-        Gen-->>App: Synthesize Grounded Response
-        App->>Cache: Cache Response (TTL 15m)
-        App-->>User: Serve Final Answer (citations & dev metadata)
-    end
+    %% Elements
+    User["User: Slack / Web UI"]
+    App["OmniBrain Service"]
+    Cache{"Memory Cache"}
+    Router["LLM Router"]
+    Notion["Notion MCP Server"]
+    Gen["LLM Generator"]
+
+    class User userNode;
+    class App serviceNode;
+    class Cache cacheNode;
+    class Router llmNode;
+    class Notion mcpNode;
+    class Gen llmNode;
+
+    %% Flow Path
+    User -->|1. Submit Query| App
+    App -->|2. Check Cache| Cache
+    
+    %% Cache Hit Pathway
+    Cache -->|Cache Hit| User
+    
+    %% Cache Miss Pathway (Full RAG)
+    Cache -->|3. Cache Miss| Router
+    Router -->|4. Search Plan| App
+    App -->|5. Run Parallel Queries| Notion
+    Notion -->|6. Return Context| App
+    
+    App -->|7. Synthesize Answer| Gen
+    Gen -->|8. Return Answer| App
+    App -->|9. Update Cache| Cache
+    App -->|10. Deliver Response| User
 ```
 
 ---
