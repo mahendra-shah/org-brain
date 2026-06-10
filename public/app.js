@@ -1,6 +1,6 @@
 /**
  * ==============================================================================
- * OrgBrain Web UI Client Logic
+ * OmniBrain Web UI Client Logic
  * ==============================================================================
  */
 
@@ -46,40 +46,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 2. Format LLM output text converting markdown to HTML
   function formatMarkdown(text) {
-    // Simple sanitization to prevent raw HTML execution
-    let html = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    let html = '';
+    let parsedWithMarked = false;
 
-    // Code blocks: ```js ... ```
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-      return `<pre><code class="language-${lang || 'txt'}">${code.trim()}</code></pre>`;
-    });
-
-    // Inline code: `code`
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-    // Bold text: **text**
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-
-    // Paragraphs split by newline doublets
-    html = html.split('\n\n').map(p => {
-      const trimmed = p.trim();
-      if (trimmed.startsWith('<pre>') || trimmed.startsWith('<ul>') || trimmed.startsWith('<ol>')) {
-        return trimmed;
+    if (typeof marked !== 'undefined') {
+      try {
+        // Set marked options for line breaks and standard Github Flavor Markdown
+        marked.setOptions({
+          breaks: true,
+          gfm: true
+        });
+        
+        // Parse markdown to HTML
+        const rawHTML = marked.parse(text);
+        
+        // Sanitize generated HTML safely
+        if (typeof DOMPurify !== 'undefined') {
+          html = DOMPurify.sanitize(rawHTML);
+        } else {
+          html = rawHTML;
+        }
+        parsedWithMarked = true;
+      } catch (err) {
+        console.warn('Failed to parse with marked, falling back to basic formatter:', err);
       }
-      return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
-    }).join('');
+    }
 
-    // Bullet lists: - item or * item
-    html = html.replace(/(?:^|\n)[-*]\s+(.+)/g, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>');
-    // Fix nested list items merged by paragraph splits
-    html = html.replace(/<\/ul>\n*<ul>/g, '');
+    if (!parsedWithMarked) {
+      // Basic regex-based parser fallback if CDN libraries are unavailable
+      html = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
 
-    // Clickable Markdown Links: [text](url)
-    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" class="chat-link">$1</a>');
+      // Code blocks: ```js ... ```
+      html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        return `<pre><code class="language-${lang || 'txt'}">${code.trim()}</code></pre>`;
+      });
+
+      // Inline code: `code`
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+      // Bold text: **text**
+      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+      // Paragraphs split by newline doublets
+      html = html.split('\n\n').map(p => {
+        const trimmed = p.trim();
+        if (trimmed.startsWith('<pre>') || trimmed.startsWith('<ul>') || trimmed.startsWith('<ol>')) {
+          return trimmed;
+        }
+        return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
+      }).join('');
+
+      // Bullet lists: - item or * item
+      html = html.replace(/(?:^|\n)[-*]\s+(.+)/g, '<li>$1</li>');
+      html = html.replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>');
+      html = html.replace(/<\/ul>\n*<ul>/g, '');
+
+      // Clickable Markdown Links: [text](url)
+      html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" class="chat-link">$1</a>');
+    }
+
+    // Post-process checkboxes: replace [ ] with checkbox input, and [x] or [X] with checked checkbox input
+    html = html
+      .replace(/\[ \]/g, '<input type="checkbox" disabled />')
+      .replace(/\[[xX]\]/g, '<input type="checkbox" checked disabled />');
 
     return html;
   }
@@ -103,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
       avatar.className += ' img-avatar';
       const img = document.createElement('img');
       img.src = 'mascot.png';
-      img.alt = 'OrgBrain Mascot';
+      img.alt = 'OmniBrain Mascot';
       avatar.appendChild(img);
     }
     
@@ -146,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
       devBlock.className = 'msg-dev-block';
       const total = usage.inputTokens + usage.outputTokens;
       
-      devBlock.innerHTML = `[OrgBrain Dev Metadata]<br>• Tokens: Input: ${usage.inputTokens} | Output: ${usage.outputTokens} | Total: ${total}<br>• Thread Context: ${historyCount} messages`;
+      devBlock.innerHTML = `[OmniBrain Dev Metadata]<br>• Tokens: Input: ${usage.inputTokens} | Output: ${usage.outputTokens} | Total: ${total}<br>• Thread Context: ${historyCount} messages`;
       chatMessages.appendChild(devBlock);
     }
     
@@ -203,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
       typingIndicator.classList.add('hide');
       userInput.disabled = false;
       sendButton.disabled = false;
-      renderMessage('assistant', '🚨 Network connection issue. Is the OrgBrain local backend server running?');
+      renderMessage('assistant', '🚨 Network connection issue. Is the OmniBrain local backend server running?');
       console.error(err);
     }
   });

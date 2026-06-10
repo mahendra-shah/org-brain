@@ -1,7 +1,7 @@
 {
-  "name": "notion-brain",
+  "name": "omnibrain",
   "version": "1.0.0",
-  "description": "Secure, failure-proof organization brain in Slack using Notion MCP server and Multi-LLM switching",
+  "description": "Secure, failure-proof OmniBrain RAG oracle in Slack using Notion MCP server and Multi-LLM switching",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

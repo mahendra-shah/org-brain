@@ -17,7 +17,7 @@ const llmClient = new LLMClient();
 // In-memory event de-duplication cache to protect against double Slack deliveries
 const processedEvents = new Set<string>();
 
-const SYSTEM_PROMPT = `You are OrgBrain, the secure knowledge Oracle for our organization.
+const SYSTEM_PROMPT = `You are OmniBrain, the secure knowledge Oracle for our organization.
 Your primary task is to answer questions from employees strictly using data retrieved from Notion.
 Rules:
 1. Search Notion thoroughly using the provided tools to answer.
@@ -130,7 +130,7 @@ export async function startSlackBot() {
       await say({
         channel: event.channel,
         thread_ts: threadTs,
-        text: "🚨 Sorry! I ran into an error accessing our Notion Brain. Please notify my administrator."
+        text: "🚨 Sorry! I ran into an error accessing OmniBrain. Please notify my administrator."
       });
     }
   });
