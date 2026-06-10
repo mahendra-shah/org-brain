@@ -152,7 +152,7 @@ export function formatSlackMessage(
     const total = usage.inputTokens + usage.outputTokens;
     const modelName = config.llmProvider === 'deepseek' ? config.deepseek.model : (config.llmProvider === 'gemini' ? config.gemini.model : config.claude.model);
     
-    let meta = `\n\n\`\`\`\n[OrgBrain Dev Metadata]\n• Provider: ${config.llmProvider.toUpperCase()} (${modelName})\n`;
+    let meta = `\n\n\`\`\`\n[OmniBrain Dev Metadata]\n• Provider: ${config.llmProvider.toUpperCase()} (${modelName})\n`;
     meta += `• Tokens: Input: ${usage.inputTokens} | Output: ${usage.outputTokens} | Total: ${total}\n`;
     if (cached !== undefined) {
       meta += `• Cache Hit: ${cached ? '✅ Yes (Free Turn)' : '❌ No (Cache Miss)'}\n`;
@@ -255,11 +255,11 @@ function cleanVerboseMetadata(obj: any): any {
 }
 
 /**
- * Strips any developer metadata block [OrgBrain Dev Metadata] and codeblocks
+ * Strips any developer metadata block [OmniBrain Dev Metadata] and codeblocks
  * from messages retrieved from conversational history to keep thread memory clean.
  */
 export function cleanHistoryMessage(text: string): string {
   if (!text) return "";
   // Strip out triple-backtick dev blocks or explicit metadata segments
-  return text.replace(/(\n\n)?```\n\[OrgBrain Dev Metadata\][\s\S]*?```/g, '').trim();
+  return text.replace(/(\n\n)?```\n\[OmniBrain Dev Metadata\][\s\S]*?```/g, '').trim();
 }

@@ -140,7 +140,7 @@ async function startSlackBot(ragService: RAGService) {
       await say({
         channel: event.channel,
         thread_ts: threadTs,
-        text: "🚨 Sorry! I ran into an error accessing our Notion Brain. Please notify my administrator."
+        text: "🚨 Sorry! I ran into an error accessing OmniBrain. Please notify my administrator."
       });
     }
   });
@@ -162,7 +162,7 @@ async function startSlackBot(ragService: RAGService) {
 
 (async () => {
   try {
-    console.log(`🔧 OrgBrain Boot Configurations — Provider: ${config.llmProvider.toUpperCase()}, Show Dev Metadata: ${config.showDevMetadata}`);
+    console.log(`🔧 OmniBrain Boot Configurations — Provider: ${config.llmProvider.toUpperCase()}, Show Dev Metadata: ${config.showDevMetadata}`);
     // 1. Start shared Notion MCP subprocess
     await mcpClient.start();
 
@@ -191,7 +191,7 @@ async function startSlackBot(ragService: RAGService) {
 
 // Graceful shutdown listeners
 const handleShutdown = async (signal: string) => {
-  console.log(`${signal} received. Shutting down OrgBrain cleanly...`);
+  console.log(`${signal} received. Shutting down OmniBrain cleanly...`);
   await mcpClient.close();
   if (slackApp) {
     try {

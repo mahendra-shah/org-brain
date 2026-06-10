@@ -1,6 +1,6 @@
 /**
  * ==============================================================================
- * OrgBrain Web UI Client Logic
+ * OmniBrain Web UI Client Logic
  * ==============================================================================
  */
 
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
       avatar.className += ' img-avatar';
       const img = document.createElement('img');
       img.src = 'mascot.png';
-      img.alt = 'OrgBrain Mascot';
+      img.alt = 'OmniBrain Mascot';
       avatar.appendChild(img);
     }
     
@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
       devBlock.className = 'msg-dev-block';
       const total = usage.inputTokens + usage.outputTokens;
       
-      devBlock.innerHTML = `[OrgBrain Dev Metadata]<br>• Tokens: Input: ${usage.inputTokens} | Output: ${usage.outputTokens} | Total: ${total}<br>• Thread Context: ${historyCount} messages`;
+      devBlock.innerHTML = `[OmniBrain Dev Metadata]<br>• Tokens: Input: ${usage.inputTokens} | Output: ${usage.outputTokens} | Total: ${total}<br>• Thread Context: ${historyCount} messages`;
       chatMessages.appendChild(devBlock);
     }
     
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
       typingIndicator.classList.add('hide');
       userInput.disabled = false;
       sendButton.disabled = false;
-      renderMessage('assistant', '🚨 Network connection issue. Is the OrgBrain local backend server running?');
+      renderMessage('assistant', '🚨 Network connection issue. Is the OmniBrain local backend server running?');
       console.error(err);
     }
   });

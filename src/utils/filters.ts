@@ -1,6 +1,6 @@
 /**
  * ==============================================================================
- * OrgBrain Security & Moderation Filters
+ * OmniBrain Security & Moderation Filters
  * ==============================================================================
  */
 
@@ -29,5 +29,5 @@ export function isQuerySensitive(query: string): boolean {
  * Returns a secure block message.
  */
 export function getSensitiveBlockMessage(): string {
-  return "🚨 **Security Notice**: Your query contains keywords that are flagged as confidential or sensitive by organization policy. OrgBrain is restricted from searching these terms to prevent data exposure.";
+  return "🚨 **Security Notice**: Your query contains keywords that are flagged as confidential or sensitive by organization policy. OmniBrain is restricted from searching these terms to prevent data exposure.";
 }

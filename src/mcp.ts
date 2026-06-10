@@ -23,7 +23,7 @@ export class NotionMCPClient {
     });
 
     this.client = new Client(
-      { name: 'orgbrain-mcp-client', version: '1.0.0' },
+      { name: 'omnibrain-mcp-client', version: '1.0.0' },
       { capabilities: {} }
     );
 

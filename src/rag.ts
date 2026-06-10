@@ -732,7 +732,7 @@ export class RAGService {
       sortNotes = `   - When querying task databases, you MUST sort descending by creation date (if the database schema supports it) to get the most recently created or assigned tasks first.`;
     }
 
-    let prompt = `You are the Query Router for OrgBrain, a secure knowledge assistant.
+    let prompt = `You are the Query Router for OmniBrain, a secure knowledge assistant.
 Your task is to analyze the user's message and determine which Notion database query or search tool calls are required to gather the necessary context to answer the question.
 
 CRITICAL INSTRUCTIONS:
@@ -792,7 +792,7 @@ Output only the minimum necessary tool calls to answer the query.`;
   }
 
   private getGeneratorSystemPrompt(userContext?: { name?: string; email?: string }): string {
-    let prompt = `You are OrgBrain, the secure knowledge Oracle for our organization.
+    let prompt = `You are OmniBrain, the secure knowledge Oracle for our organization.
 Your task is to synthesize a professional, accurate, and grounded response to the employee's query strictly using the Notion context provided in the conversation.
 
 CRITICAL INSTRUCTIONS:
